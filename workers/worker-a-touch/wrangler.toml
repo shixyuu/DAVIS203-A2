@@ -1,0 +1,17 @@
+name = "digital-wasteland-worker-a-touch"
+account_id = "51a83ad4f012e0e8bcb2d3f75af32c20"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+[assets]
+directory = "../../frontend-wasteland"
+binding = "ASSETS"
+
+[durable_objects]
+bindings = [
+  { name = "TOUCH_RELAY", class_name = "TouchRelayRoom" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TouchRelayRoom"]

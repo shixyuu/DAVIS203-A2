@@ -1,0 +1,84 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #050608;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+}
+
+#replay-video {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  object-fit: contain;
+  background: #000000;
+}
+
+.start-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: rgba(5, 6, 8, 0.94);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  transition: opacity 0.5s ease;
+}
+
+.start-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.start-btn {
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  color: #ffffff;
+  padding: 28px 56px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  transition: border-color 0.25s ease, transform 0.2s ease, background 0.25s ease;
+}
+
+.start-btn:hover {
+  border-color: rgba(239, 68, 68, 0.9);
+  background: rgba(239, 68, 68, 0.08);
+  transform: scale(1.02);
+}
+
+.start-btn .title {
+  font-size: 24px;
+  font-weight: 300;
+  letter-spacing: 0.28em;
+  padding-left: 0.28em;
+}
+
+.start-btn .sub {
+  font-family: monospace;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0.18em;
+}
+
+.cache-status {
+  font-family: monospace;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.08em;
+}

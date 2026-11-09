@@ -1,0 +1,12 @@
+{
+  "name": "digital-wasteland-workers",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Serverless Cloudflare Workers relays for Digital Wasteland installation art",
+  "scripts": {
+    "dev:worker-a": "npx wrangler dev workers/worker-a-touch/src/index.js --config workers/worker-a-touch/wrangler.toml --port 8787",
+    "dev:worker-b": "npx wrangler dev workers/worker-b-video/src/index.js --config workers/worker-b-video/wrangler.toml --port 8788",
+    "deploy:worker-a": "npx wrangler deploy --config workers/worker-a-touch/wrangler.toml",
+    "deploy:worker-b": "npx wrangler deploy --config workers/worker-b-video/wrangler.toml"
+  }
+}

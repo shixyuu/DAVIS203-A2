@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Exhibition Reveal — Forensic Archive Replay</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <!-- Fullscreen video chronological replay viewport -->
+  <video id="replay-video" playsinline></video>
+
+  <!-- Minimal start overlay -->
+  <div id="start-overlay" class="start-overlay">
+    <button id="btn-start-reveal" class="start-btn">
+      <span class="title">EXHIBITION REVEAL</span>
+      <span class="sub">CLICK TO PLAY CACHED FOOTAGE</span>
+    </button>
+    <div id="cache-status" class="cache-status">Local cache: 0 clip(s)</div>
+  </div>
+
+  <script type="module" src="./reveal.js"></script>
+</body>
+</html>

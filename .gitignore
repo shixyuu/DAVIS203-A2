@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+.wrangler/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Android build outputs & local config
+android-client/local.properties
+android-client/**/build/
+*.idsig
+
+# Toolchain temporary caches
+/tmp/wasteland*
