@@ -125,25 +125,25 @@ function gasCurlAngle(x, y, t) {
  * Ignite backlight and push ambient mist on touch
  */
 function igniteBacklightAndPushGas(x, y, dirVx, dirVy, isTap, palette) {
-  // 1. Create soft backlight node
+  // 1. Create subtle, soft-toned backlight node (smaller radius, gentle luminance)
   state.backlights.push({
     x,
     y,
-    vx: dirVx * 0.18,
-    vy: dirVy * 0.18,
-    radius: isTap ? 160 : 125,
-    maxRadius: isTap ? 250 : 185,
-    intensity: isTap ? 0.95 : 0.72,
-    fadeSpeed: isTap ? 0.55 : 0.75,
+    vx: dirVx * 0.15,
+    vy: dirVy * 0.15,
+    radius: isTap ? 75 : 52,
+    maxRadius: isTap ? 120 : 88,
+    intensity: isTap ? 0.62 : 0.42,
+    fadeSpeed: isTap ? 0.65 : 0.85,
     color: palette,
   });
 
-  if (state.backlights.length > 75) {
+  if (state.backlights.length > 70) {
     state.backlights.shift();
   }
 
-  // 2. Apply gentle fluid advection to nearby mist and motes
-  const influenceR = isTap ? 190 : 145;
+  // 2. Apply gentle fluid advection to nearby mist and motes (compact influence)
+  const influenceR = isTap ? 100 : 72;
   const rSq = influenceR * influenceR;
 
   // Push and illuminate mist puffs
@@ -276,11 +276,16 @@ function animate(now) {
     }
 
     const { r, g, b } = bl.color;
-    const alpha = bl.intensity * 0.22;
+    const alpha = bl.intensity * 0.13; // Softened intensity to avoid blowing out
+    const innerR = Math.min(230, Math.round(r * 0.85 + 30));
+    const innerG = Math.min(230, Math.round(g * 0.85 + 30));
+    const innerB = Math.min(230, Math.round(b * 0.85 + 30));
+
     const grad = ctx.createRadialGradient(bl.x, bl.y, 0, bl.x, bl.y, bl.radius);
-    grad.addColorStop(0, `rgba(255, 255, 255, ${(alpha * 1.15).toFixed(3)})`);
-    grad.addColorStop(0.28, `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`);
-    grad.addColorStop(0.68, `rgba(${r}, ${g}, ${b}, ${(alpha * 0.32).toFixed(3)})`);
+    // Eliminate direct 255,255,255 pure white center; use warm/tinted soft gradient
+    grad.addColorStop(0, `rgba(${innerR}, ${innerG}, ${innerB}, ${(alpha * 0.9).toFixed(3)})`);
+    grad.addColorStop(0.35, `rgba(${r}, ${g}, ${b}, ${(alpha * 0.65).toFixed(3)})`);
+    grad.addColorStop(0.72, `rgba(${r}, ${g}, ${b}, ${(alpha * 0.18).toFixed(3)})`);
     grad.addColorStop(1, "rgba(0, 0, 0, 0)");
 
     ctx.fillStyle = grad;
@@ -308,7 +313,7 @@ function animate(now) {
 
     puff.litLevel = Math.max(0, puff.litLevel - dt * 0.42);
 
-    const mistAlpha = 0.012 + puff.litLevel * 0.075;
+    const mistAlpha = 0.008 + puff.litLevel * 0.042;
     const { r, g, b } = puff.litColor;
     const grad = ctx.createRadialGradient(
       puff.x,
@@ -347,14 +352,14 @@ function animate(now) {
     m.litLevel = Math.max(0, m.litLevel - dt * 0.55);
 
     const lit = m.litLevel;
-    const alpha = m.baseAlpha + lit * 0.78;
+    const alpha = m.baseAlpha + lit * 0.45;
     const { r, g, b } = m.litColor;
-    const mr = Math.round(70 + lit * (r - 70));
-    const mg = Math.round(115 + lit * (g - 115));
-    const mb = Math.round(135 + lit * (b - 135));
+    const mr = Math.round(55 + lit * (r - 55));
+    const mg = Math.round(95 + lit * (g - 95));
+    const mb = Math.round(115 + lit * (b - 115));
 
     ctx.fillStyle = `rgba(${mr}, ${mg}, ${mb}, ${alpha.toFixed(2)})`;
-    const drawSize = m.size + lit * 1.4;
+    const drawSize = m.size + lit * 0.75;
     ctx.beginPath();
     ctx.arc(m.x, m.y, drawSize * 0.55, 0, Math.PI * 2);
     ctx.fill();
