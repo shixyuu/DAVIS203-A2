@@ -53,16 +53,16 @@ flowchart LR
 
 ---
 
-## 3. Live Deployment Endpoints
+## 3. Configuration & Endpoints
 
-Both frontends are hosted directly on Cloudflare Workers edge nodes:
+Server endpoints in the open-source release are intentionally left blank for standalone privacy and custom deployment:
 
 1. **Frontend 1 (Fluid Mist & Backlight Main Projection)**:
-   - URL: `https://digital-wasteland-worker-a-touch.dsm-project.workers.dev/`
-   - WebSocket Feed: `wss://digital-wasteland-worker-a-touch.dsm-project.workers.dev/ws?role=consumer&room=main`
+   - Configure `WORKER_A_WS` in `frontend-wasteland/wasteland.js` (e.g. `wss://<your-worker-a-subdomain>.workers.dev/ws?role=consumer&room=main`)
 2. **Frontend 2 (Epilogue Reveal System)**:
-   - URL: `https://digital-wasteland-worker-b-video.dsm-project.workers.dev/`
-   - WebSocket Feed: `wss://digital-wasteland-worker-b-video.dsm-project.workers.dev/ws?role=consumer&room=main`
+   - Configure `WORKER_B_WS` in `frontend-reveal/reveal.js` (e.g. `wss://<your-worker-b-subdomain>.workers.dev/ws?role=consumer&room=main`)
+3. **Android Client**:
+   - The Android client operates in privacy-safe local mode with zero server egress by default. Custom relay ingestion endpoints can be attached if server streaming is desired.
 
 ---
 

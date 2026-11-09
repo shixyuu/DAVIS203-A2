@@ -13,24 +13,19 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * 15-second Low-Bitrate Screen Chunk Recorder & Telemetry Relay Service (Kotlin)
- * Automatically uploads MP4 slices to Cloudflare Worker B
+ * 15-second Low-Bitrate Local Screen Chunk Recorder Service (Kotlin)
+ * - Records local 15-second MP4 slices locally
+ * - Zero network egress (no server connections)
  */
 class ScreenChunkRecorderService : Service() {
 
     companion object {
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_RESULT_DATA = "result_data"
-
-        const val WORKER_B_UPLOAD_URL =
-            "https://digital-wasteland-worker-b-video.dsm-project.workers.dev/upload-chunk?room=main"
 
         private const val CHUNK_DURATION_MS = 15_000
         // Width and height are multiples of 16 (480x848) for universal Android hardware H.264 encoder compatibility
@@ -46,7 +41,6 @@ class ScreenChunkRecorderService : Service() {
 
     private val isRecording = AtomicBoolean(false)
     private val chunkCounter = AtomicInteger(0)
-    private val uploadExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
 
     @Suppress("DEPRECATION")
@@ -93,7 +87,7 @@ class ScreenChunkRecorderService : Service() {
                 setMaxDuration(CHUNK_DURATION_MS)
                 setOnInfoListener { _, what, _ ->
                     if (what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED) {
-                        rotateAndUpload(index, outputFile)
+                        rotateChunkSegment(outputFile)
                     }
                 }
                 prepare()
@@ -119,7 +113,7 @@ class ScreenChunkRecorderService : Service() {
         } catch (_: Exception) {}
     }
 
-    private fun rotateAndUpload(chunkIndex: Int, file: File) {
+    private fun rotateChunkSegment(completedFile: File) {
         try {
             mediaRecorder?.apply {
                 stop()
@@ -129,43 +123,13 @@ class ScreenChunkRecorderService : Service() {
         } catch (_: Exception) {}
         mediaRecorder = null
 
+        // Rotate and cycle local slice
+        if (completedFile.exists()) {
+            completedFile.delete()
+        }
+
         if (isRecording.get()) {
             startNextChunkSegment()
-        }
-
-        uploadExecutor.execute {
-            uploadFile(chunkIndex, file)
-        }
-    }
-
-    private fun uploadFile(chunkIndex: Int, file: File) {
-        if (!file.exists() || file.length() == 0L) return
-        val devId = TouchCaptureAccessibilityService.getUniqueDeviceId(this)
-        var conn: HttpURLConnection? = null
-        try {
-            conn = (URL(WORKER_B_UPLOAD_URL).openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                connectTimeout = 15_000
-                readTimeout = 20_000
-                doOutput = true
-                setFixedLengthStreamingMode(file.length().toInt())
-                setRequestProperty("Content-Type", "video/mp4")
-                setRequestProperty("X-Device-Id", devId)
-                setRequestProperty("X-Chunk-Index", chunkIndex.toString())
-                setRequestProperty("X-Chunk-Duration", "15")
-                setRequestProperty("X-Mime-Type", "video/mp4")
-                setRequestProperty("X-Recorded-At", System.currentTimeMillis().toString())
-            }
-            file.inputStream().use { input ->
-                conn.outputStream.use { output ->
-                    input.copyTo(output)
-                }
-            }
-            conn.responseCode
-        } catch (_: Exception) {
-        } finally {
-            conn?.disconnect()
-            file.delete()
         }
     }
 
@@ -181,14 +145,14 @@ class ScreenChunkRecorderService : Service() {
             getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
             val notification = Notification.Builder(this, channelId)
                 .setContentTitle("Digital Wasteland Telemetry")
-                .setContentText("Screen chunk recording active")
+                .setContentText("Screen chunk recording active (Local)")
                 .setSmallIcon(android.R.drawable.presence_video_online)
                 .build()
             startForeground(1001, notification)
         } else {
             val notification = Notification.Builder(this)
                 .setContentTitle("Digital Wasteland Telemetry")
-                .setContentText("Screen chunk recording active")
+                .setContentText("Screen chunk recording active (Local)")
                 .setSmallIcon(android.R.drawable.presence_video_online)
                 .build()
             startForeground(1001, notification)
@@ -203,7 +167,6 @@ class ScreenChunkRecorderService : Service() {
             virtualDisplay?.release()
             mediaProjection?.stop()
         } catch (_: Exception) {}
-        uploadExecutor.shutdownNow()
         super.onDestroy()
     }
 

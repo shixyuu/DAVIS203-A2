@@ -13,8 +13,8 @@
 
 import { SoundscapeInterface } from "./soundscape.js";
 
-const WORKER_A_WS =
-  "wss://digital-wasteland-worker-a-touch.dsm-project.workers.dev/ws?role=consumer&room=main";
+// Set your Cloudflare Worker A WebSocket URL here (leave empty for standalone local mode)
+const WORKER_A_WS = "";
 
 const canvas = document.getElementById("wasteland-canvas");
 const ctx = canvas.getContext("2d", { alpha: false });
@@ -370,6 +370,7 @@ function animate(now) {
 }
 
 function connectWorkerA() {
+  if (!WORKER_A_WS) return;
   try {
     const ws = new WebSocket(WORKER_A_WS);
     state.ws = ws;

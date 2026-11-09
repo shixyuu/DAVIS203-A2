@@ -6,8 +6,8 @@
  * 2. Clicking "Play" plays all cached chunks chronologically in seamless fullscreen loop.
  */
 
-const WORKER_B_WS =
-  "wss://digital-wasteland-worker-b-video.dsm-project.workers.dev/ws?role=consumer&room=main";
+// Set your Cloudflare Worker B WebSocket URL here (leave empty for standalone local mode)
+const WORKER_B_WS = "";
 
 const DB_NAME = "DigitalWastelandVaultV2";
 const STORE_NAME = "video_chunks";
@@ -114,6 +114,7 @@ startBtn.addEventListener("click", async () => {
 });
 
 function connectWorkerB() {
+  if (!WORKER_B_WS) return;
   try {
     const ws = new WebSocket(WORKER_B_WS);
     ws.binaryType = "arraybuffer";

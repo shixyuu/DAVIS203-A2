@@ -1,5 +1,4 @@
 name = "digital-wasteland-worker-b-video"
-account_id = "51a83ad4f012e0e8bcb2d3f75af32c20"
 main = "src/index.js"
 compatibility_date = "2024-11-01"
 

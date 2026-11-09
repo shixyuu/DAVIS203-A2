@@ -2,30 +2,21 @@ package art.wasteland.client
 
 import android.accessibilityservice.AccessibilityService
 import android.graphics.Rect
-import android.os.Handler
-import android.os.Looper
 import android.provider.Settings
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
-import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.Executors
 
 /**
- * Multi-device Touch Capture Accessibility Service (Kotlin)
- * - Captures taps and gestures accurately
- * - Generates unique deviceId per device using ANDROID_ID for seamless multi-device exhibitions
+ * Local Touch Capture Accessibility Service (Kotlin)
+ * - Captures taps and gestures strictly locally
+ * - Zero network dispatch (no server connections)
  */
 class TouchCaptureAccessibilityService : AccessibilityService() {
 
     companion object {
-        const val WORKER_A_INGEST_URL =
-            "https://digital-wasteland-worker-a-touch.dsm-project.workers.dev/ingest?room=main"
-
         @Volatile
         var isServiceActive: Boolean = false
 
@@ -39,26 +30,16 @@ class TouchCaptureAccessibilityService : AccessibilityService() {
         }
     }
 
-    private val eventBuffer = ConcurrentLinkedQueue<JSONObject>()
-    private val networkExecutor = Executors.newFixedThreadPool(2)
-    private val handler = Handler(Looper.getMainLooper())
+    private val localEventBuffer = ConcurrentLinkedQueue<JSONObject>()
     private var screenWidth = 1080
     private var screenHeight = 2400
     private var deviceId = "node-default"
-
-    private val flushTask = object : Runnable {
-        override fun run() {
-            flushBatch()
-            handler.postDelayed(this, 45L)
-        }
-    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         isServiceActive = true
         deviceId = getUniqueDeviceId(this)
         updateScreenSize()
-        handler.post(flushTask)
     }
 
     @Suppress("DEPRECATION")
@@ -111,43 +92,11 @@ class TouchCaptureAccessibilityService : AccessibilityService() {
             put("action", action)
             put("ts", System.currentTimeMillis())
         }
-        eventBuffer.offer(obj)
-    }
+        localEventBuffer.offer(obj)
 
-    private fun flushBatch() {
-        if (eventBuffer.isEmpty()) return
-        val arr = JSONArray()
-        while (arr.length() < 35) {
-            val ev = eventBuffer.poll() ?: break
-            arr.put(ev)
-        }
-        if (arr.length() == 0) return
-
-        networkExecutor.execute {
-            var conn: HttpURLConnection? = null
-            try {
-                val payload = JSONObject().apply {
-                    put("type", "touch_batch")
-                    put("deviceId", deviceId)
-                    put("screenWidth", screenWidth)
-                    put("screenHeight", screenHeight)
-                    put("events", arr)
-                }
-                val bytes = payload.toString().toByteArray(Charsets.UTF_8)
-                conn = (URL(WORKER_A_INGEST_URL).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    connectTimeout = 5000
-                    readTimeout = 5000
-                    doOutput = true
-                    setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                    setRequestProperty("X-Device-Id", deviceId)
-                }
-                conn.outputStream.use { it.write(bytes) }
-                conn.responseCode
-            } catch (_: Exception) {
-            } finally {
-                conn?.disconnect()
-            }
+        // Keep buffer bounded locally
+        while (localEventBuffer.size > 200) {
+            localEventBuffer.poll()
         }
     }
 
@@ -155,8 +104,7 @@ class TouchCaptureAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         isServiceActive = false
-        handler.removeCallbacks(flushTask)
-        networkExecutor.shutdownNow()
+        localEventBuffer.clear()
         super.onDestroy()
     }
 }

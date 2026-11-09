@@ -109,7 +109,7 @@ class MainActivity : Activity() {
             } else {
                 startService(svc)
             }
-            Toast.makeText(this, "Background telemetry relay active", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Background capture active (Local)", Toast.LENGTH_SHORT).show()
             moveTaskToBack(true)
         }
     }
