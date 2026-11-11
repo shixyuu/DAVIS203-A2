@@ -50,6 +50,13 @@ const DEMO_WORDS = [
   "流转", "余烬", "微澜", "浮生", "浅海", "呼吸", "隐秘"
 ];
 
+// 赛博/文字解密跳动字符集 (Matrix / Scramble Glyph Pool)
+const SCRAMBLE_GLYPHS = "01_*/[]<>~#%&+=§±ΔΩж¥$@!?;:abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+function getScrambledChar() {
+  return SCRAMBLE_GLYPHS[Math.floor(Math.random() * SCRAMBLE_GLYPHS.length)];
+}
+
 function resizeCanvas() {
   width = window.innerWidth;
   height = window.innerHeight;
@@ -101,6 +108,9 @@ function spawnFloatingWord(text, originX, originY) {
     vy: -0.06 - Math.random() * 0.08, // 微微向上浮游
     createdAt: performance.now(),
     lifeSpanMs: 30000, // 30 秒生命周期
+    decryptDurationMs: 2200, // 前 2.2 秒执行乱码跳动与逐字解密
+    lastScrambleUpdate: 0,
+    displayText: "",
     fontSize: 16 + Math.floor(Math.random() * 8),
     angle: (Math.random() - 0.5) * 0.06,
     seed: Math.random() * 100,
@@ -191,10 +201,11 @@ function animate(now) {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, width, height);
 
-  // 2. 海洋连续起伏曲面 (Surface Mesh Wavefield)
+  // 2. 海洋与物理水波像素马赛克曲面 (Mosaic Pixel Mesh Surface)
   ctx.save();
   const lightX = 0.55;
   const lightY = 0.65;
+  const pixelGap = 1.0; // 马赛克方块微缝，增强像素数码颗粒感
 
   for (let r = 0; r < ROWS - 1; r += 2) {
     for (let c = 0; c < COLS; c += 2) {
@@ -217,20 +228,26 @@ function animate(now) {
       let baseG = 232 + brightness * 38;
       let baseB = 246 + brightness * 20;
 
-      // 浪尖微光
-      if (Math.abs(rippleH) > 2.5) {
-        const crest = Math.min(1.0, Math.abs(rippleH) / 16.0);
+      // 强化的马赛克高亮阶梯量化 (Quantized Mosaic Waves)
+      const isRippleActive = Math.abs(rippleH) > 1.2;
+      if (isRippleActive) {
+        // 量化阶梯：让水波形成一阶一阶的高科技数码台阶
+        const steps = Math.floor(Math.abs(rippleH) / 3.0);
+        const crest = Math.min(1.0, steps * 0.22 + 0.15);
         baseR = baseR * (1 - crest) + 255 * crest;
         baseG = baseG * (1 - crest) + 255 * crest;
         baseB = baseB * (1 - crest) + 255 * crest;
       }
 
-      baseR = Math.max(160, Math.min(255, Math.round(baseR)));
-      baseG = Math.max(195, Math.min(255, Math.round(baseG)));
-      baseB = Math.max(220, Math.min(255, Math.round(baseB)));
+      baseR = Math.max(150, Math.min(255, Math.round(baseR)));
+      baseG = Math.max(190, Math.min(255, Math.round(baseG)));
+      baseB = Math.max(215, Math.min(255, Math.round(baseB)));
 
+      // 绘制独立的像素方砖 (Mosaic Tile)
       ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`;
-      ctx.fillRect(px, py + totalH * 0.42, cellW * 2 + 1, cellH * 2 + 1);
+      const tileW = Math.max(1, cellW * 2 - pixelGap);
+      const tileH = Math.max(1, cellH * 2 - pixelGap);
+      ctx.fillRect(px, py + totalH * 0.42, tileW, tileH);
     }
   }
 
@@ -254,7 +271,7 @@ function animate(now) {
   }
   ctx.restore();
 
-  // 4. 漂浮在水面的 30 秒消散文字 (Floating Ephemeral Words)
+  // 4. 漂浮在水面的 30 秒消散文字 (带乱码跳动与逐字破译特效)
   ctx.save();
   for (let i = floatingWords.length - 1; i >= 0; i--) {
     const item = floatingWords[i];
@@ -274,6 +291,32 @@ function animate(now) {
       alpha = (item.lifeSpanMs - ageMs) / 6000;
     }
 
+    // 乱码破译计算 (Scramble & Decrypt Animation)
+    // 前 2.2 秒内，文字从乱码跳动逐渐固定为真实字符
+    let currentRenderText = item.text;
+    if (ageMs < item.decryptDurationMs) {
+      const progress = ageMs / item.decryptDurationMs; // 0.0 ~ 1.0
+      const totalChars = item.text.length;
+      const revealedCount = Math.floor(progress * totalChars);
+
+      // 每 45ms 刷新一次跳动乱码
+      if (now - item.lastScrambleUpdate > 45 || !item.displayText) {
+        let scrambled = "";
+        for (let c = 0; c < totalChars; c++) {
+          if (c < revealedCount) {
+            scrambled += item.text[c];
+          } else {
+            scrambled += getScrambledChar();
+          }
+        }
+        item.displayText = scrambled;
+        item.lastScrambleUpdate = now;
+      }
+      currentRenderText = item.displayText;
+    } else {
+      currentRenderText = item.text;
+    }
+
     // 随水体起伏摇曳
     const localSwell = getNaturalOceanSwell(item.x, item.y, oceanTime);
     item.x += item.vx + Math.sin(oceanTime * 0.8 + item.seed) * 0.18;
@@ -286,7 +329,7 @@ function animate(now) {
     ctx.rotate(item.angle + Math.sin(oceanTime + item.seed) * 0.03);
 
     // 判断是否包含中文字符
-    const hasChinese = /[\u4e00-\u9fa5]/.test(item.text);
+    const hasChinese = /[\u4e00-\u9fa5]/.test(currentRenderText);
 
     // 字体排版风格：英文 Michroma 科技极简，中文 HarmonyOS Sans SC 压扁拉宽以契合 Michroma 韵味
     ctx.font = `400 ${item.fontSize}px 'Michroma', 'HarmonyOS Sans SC', 'HarmonyOS Sans', sans-serif`;
@@ -299,13 +342,18 @@ function animate(now) {
       ctx.scale(1.22, 0.92);
     }
 
-    // 柔和水下倒影 / 辉光
-    ctx.fillStyle = `rgba(255, 255, 255, ${(alpha * 0.75).toFixed(3)})`;
-    ctx.fillText(item.text, 0, 1);
+    // 若在乱码破译阶段，呈现更强烈的青蓝数码微光
+    const isDecrypting = ageMs < item.decryptDurationMs;
+    const glowColor = isDecrypting ? "rgba(14, 165, 233, 0.9)" : "rgba(255, 255, 255, 0.75)";
+    const textColor = isDecrypting ? "rgba(2, 132, 199, 0.95)" : "rgba(30, 58, 86, 0.82)";
 
-    // 文字主体墨青色
-    ctx.fillStyle = `rgba(30, 58, 86, ${(alpha * 0.82).toFixed(3)})`;
-    ctx.fillText(item.text, 0, 0);
+    // 柔和水下倒影 / 辉光
+    ctx.fillStyle = glowColor;
+    ctx.fillText(currentRenderText, 0, 1);
+
+    // 文字主体
+    ctx.fillStyle = textColor;
+    ctx.fillText(currentRenderText, 0, 0);
 
     ctx.restore();
   }
