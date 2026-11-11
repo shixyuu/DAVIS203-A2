@@ -1,84 +1,408 @@
+:root {
+  --bg: #050607;
+  --panel: #0a0b0d;
+  --meta-bg: #08090b;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --text: #d6d8de;
+  --muted: rgba(180, 186, 198, 0.55);
+  --faint: rgba(160, 168, 180, 0.32);
+  --live: #5dffb0;
+  --rec: #ff4848;
+  --font: "Michroma", system-ui, sans-serif;
+  --pad: clamp(16px, 2.4vw, 36px);
+  --meta-w: clamp(120px, 11vw, 175px);
+  --spring: cubic-bezier(0.2, 0.9, 0.24, 1.12);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
   user-select: none;
+  -webkit-user-select: none;
 }
 
-html,
-body {
-  width: 100%;
+html, body {
+  margin: 0;
   height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
   overflow: hidden;
-  background: #050608;
-  color: #ffffff;
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-#replay-video {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  object-fit: contain;
-  background: #000000;
+body {
+  background:
+    radial-gradient(ellipse 65% 55% at 50% 50%, rgba(35, 45, 55, 0.22), transparent 72%),
+    var(--bg);
 }
 
-.start-overlay {
+/* CRT 扫描线与暗角 */
+.veil {
+  pointer-events: none;
   position: fixed;
   inset: 0;
-  z-index: 10;
-  background: rgba(5, 6, 8, 0.94);
+  z-index: 50;
+  opacity: 0.55;
+  background:
+    radial-gradient(ellipse 85% 70% at 50% 45%, transparent 45%, rgba(0, 0, 0, 0.6) 100%),
+    repeating-linear-gradient(to bottom, transparent 0, transparent 3px, rgba(0, 0, 0, 0.06) 4px);
+}
+
+/* 顶部监视 HUD */
+.top {
+  position: fixed;
+  top: var(--pad);
+  left: var(--pad);
+  right: var(--pad);
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  gap: 24px;
-  transition: opacity 0.5s ease;
-}
-
-.start-overlay.hidden {
-  opacity: 0;
+  z-index: 60;
   pointer-events: none;
 }
 
-.start-btn {
-  background: transparent;
-  border: 1px solid rgba(239, 68, 68, 0.45);
-  color: #ffffff;
-  padding: 28px 56px;
-  border-radius: 4px;
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-mark {
+  font-size: 11px;
+  letter-spacing: 0.45em;
+  color: rgba(236, 238, 244, 0.92);
+  padding-left: 2px;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--live);
+  animation: pulse 2.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.dot.is-offline {
+  background: rgba(180, 186, 198, 0.35);
+  box-shadow: none;
+  animation: none;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(93, 255, 176, 0.3); opacity: 1; }
+  50% { box-shadow: 0 0 0 7px rgba(93, 255, 176, 0); opacity: 0.85; }
+}
+
+.hud {
+  font-size: 9px;
+  letter-spacing: 0.28em;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.hud b {
+  color: rgba(236, 238, 244, 0.9);
+  font-weight: 400;
+}
+
+/* 新切片提示小胶囊 */
+.fresh {
+  position: fixed;
+  top: calc(var(--pad) - 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 61;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  color: rgba(236, 238, 244, 0.88);
+  background: rgba(10, 12, 14, 0.85);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
   cursor: pointer;
+  backdrop-filter: blur(8px);
+  animation: freshIn 0.5s var(--spring);
+}
+.fresh[hidden] { display: none; }
+.fresh:hover { border-color: rgba(93, 255, 176, 0.45); }
+.fresh-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--live);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes freshIn {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* 核心监视屏堆栈 (Deck) */
+.deck {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  cursor: grab;
+  touch-action: none;
+  perspective: 1600px;
+}
+.deck.is-dragging { cursor: grabbing; }
+
+/* 监视卡片（自适应横屏 16:9 与竖屏 9:16） */
+.card, .ghost {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  flex-direction: row;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  transform-origin: 50% 60%;
+  will-change: transform, opacity;
+  box-shadow:
+    0 calc(10px + 40px * var(--lift, 0)) calc(30px + 70px * var(--lift, 0)) rgba(0, 0, 0, calc(0.45 + 0.3 * var(--lift, 0))),
+    0 0 0 1px rgba(0, 0, 0, 0.6);
+  transition:
+    transform 0.68s var(--spring),
+    opacity 0.45s ease,
+    box-shadow 0.5s ease;
+}
+
+/* 竖屏 Portrait 9:16 规格 */
+.card.is-portrait, .ghost.is-portrait {
+  --ch: min(72vh, calc((100vw - 2 * var(--pad) - var(--meta-w) - 60px) * 16 / 9));
+  --cw: calc(var(--ch) * 9 / 16 + var(--meta-w));
+  width: var(--cw);
+  height: var(--ch);
+  margin-left: calc(var(--cw) / -2);
+  margin-top: calc(var(--ch) / -2 + 25px);
+}
+
+/* 横屏 Landscape 16:9 规格 */
+.card.is-landscape, .ghost.is-landscape {
+  --cw: min(84vw, calc((100vh - 2 * var(--pad) - 90px) * 16 / 9 + var(--meta-w)));
+  --ch: calc((var(--cw) - var(--meta-w)) * 9 / 16);
+  width: var(--cw);
+  height: var(--ch);
+  margin-left: calc(var(--cw) / -2);
+  margin-top: calc(var(--ch) / -2 + 25px);
+}
+
+.deck.is-dragging .card { transition: none; }
+.card:not(.is-front) { border-color: rgba(255, 255, 255, 0.14); }
+.card.no-anim { transition: none !important; }
+
+/* 视频画框 */
+.card .frame {
+  position: relative;
+  height: 100%;
+  flex: 0 0 auto;
+  overflow: hidden;
+  background: #000;
+}
+.card.is-portrait .frame {
+  aspect-ratio: 9 / 16;
+}
+.card.is-landscape .frame {
+  aspect-ratio: 16 / 9;
+}
+
+.card video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background: #000;
+  pointer-events: none;
+}
+
+/* 景深变暗遮罩 */
+.card::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  background: #040506;
+  opacity: var(--dim, 0);
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+.deck.is-dragging .card::after { transition: none; }
+
+/* 录像红灯 */
+.card .cam {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.4s;
+  z-index: 5;
+}
+.card .cam-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rec);
+  box-shadow: 0 0 6px var(--rec);
+}
+.card .cam-text {
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  color: #fff;
+  text-shadow: 0 0 4px #000;
+}
+.card.is-front .cam {
+  opacity: 1;
+  animation: rec 2s steps(1) infinite;
+}
+@keyframes rec { 50% { opacity: 0.3; } }
+
+/* 右侧元数据标签 */
+.card .tag {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 16px 14px;
+  background: var(--meta-bg);
+  border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  transition: border-color 0.25s ease, transform 0.2s ease, background 0.25s ease;
+  gap: 12px;
+  overflow: hidden;
 }
 
-.start-btn:hover {
-  border-color: rgba(239, 68, 68, 0.9);
-  background: rgba(239, 68, 68, 0.08);
-  transform: scale(1.02);
+.t-idx {
+  font-size: 8.5px;
+  letter-spacing: 0.3em;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
 }
-
-.start-btn .title {
-  font-size: 24px;
-  font-weight: 300;
-  letter-spacing: 0.28em;
-  padding-left: 0.28em;
-}
-
-.start-btn .sub {
-  font-family: monospace;
+.t-name {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.55);
-  letter-spacing: 0.18em;
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  color: rgba(236, 238, 244, 0.95);
+  word-break: break-word;
 }
-
-.cache-status {
-  font-family: monospace;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.35);
+.t-aspect {
+  display: inline-block;
+  font-size: 7.5px;
+  letter-spacing: 0.2em;
+  padding: 3px 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  width: fit-content;
+}
+.t-ip {
+  font-size: 8.5px;
+  line-height: 1.4;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  word-break: break-all;
+  font-variant-numeric: tabular-nums;
+}
+.t-net {
+  margin-top: auto;
+  font-size: 8px;
+  line-height: 1.6;
   letter-spacing: 0.08em;
+  color: var(--faint);
+  word-break: break-word;
+}
+.t-rule {
+  height: 1px;
+  background: var(--line);
+  width: 100%;
+}
+
+/* 待机空状态卡片 */
+.ghost {
+  border-color: rgba(255, 255, 255, 0.06);
+  background: #070809;
+  box-shadow: none;
+  transition: opacity 0.5s ease;
+}
+.ghost.is-hidden { opacity: 0; }
+.ghost-frame {
+  height: 100%;
+  background: linear-gradient(160deg, rgba(255,255,255,0.02), transparent 50%, rgba(0,0,0,0.3));
+}
+.ghost.is-portrait .ghost-frame { aspect-ratio: 9 / 16; }
+.ghost.is-landscape .ghost-frame { aspect-ratio: 16 / 9; }
+.ghost-tag {
+  flex: 1;
+  border-left: 1px solid rgba(255, 255, 255, 0.04);
+}
+.ghost-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  letter-spacing: 0.45em;
+  color: var(--faint);
+  animation: breathe 3s ease-in-out infinite;
+}
+@keyframes breathe { 50% { opacity: 0.35; } }
+
+/* 右侧历史卡片指示刻度 (History Rail) */
+.rail {
+  position: fixed;
+  right: var(--pad);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 6px 0;
+}
+.rail button {
+  all: unset;
+  display: block;
+  width: 14px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+  position: relative;
+  transition: width 0.35s var(--spring), background 0.3s;
+  margin-left: auto;
+}
+.rail button::before { content: ""; position: absolute; inset: -5px -8px; }
+.rail button:hover { background: rgba(255, 255, 255, 0.55); }
+.rail button.is-current { width: 32px; background: rgba(236, 238, 244, 0.95); }
+
+/* 底部操作提示 */
+.hint {
+  position: fixed;
+  bottom: calc(var(--pad) - 2px);
+  left: 0; right: 0;
+  text-align: center;
+  font-size: 8px;
+  letter-spacing: 0.45em;
+  color: var(--faint);
+  z-index: 60;
+  pointer-events: none;
+  transition: opacity 1.2s ease;
+}
+.hint.is-gone { opacity: 0; }
+
+@media (max-width: 768px) {
+  :root {
+    --meta-w: 96px;
+  }
+  .card .tag { padding: 12px 10px; gap: 8px; }
+  .t-name { font-size: 9.5px; }
+  .t-ip, .t-net { font-size: 7px; }
+  .rail { display: none; }
 }
