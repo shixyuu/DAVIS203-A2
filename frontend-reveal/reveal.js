@@ -7,7 +7,12 @@
  */
 
 // Set your Cloudflare Worker B WebSocket URL here (leave empty for standalone local mode)
-const WORKER_B_WS = "";
+const WORKER_B_WS =
+  window.location.protocol === "https:"
+    ? `wss://${window.location.host}/ws?role=consumer&room=main`
+    : (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+    ? "wss://digital-wasteland-worker-b-video.dsm-project.workers.dev/ws?role=consumer&room=main"
+    : "wss://digital-wasteland-worker-b-video.dsm-project.workers.dev/ws?role=consumer&room=main";
 
 const DB_NAME = "DigitalWastelandVaultV2";
 const STORE_NAME = "video_chunks";

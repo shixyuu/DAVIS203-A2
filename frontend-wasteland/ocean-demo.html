@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ocean Zen · 清透浅色海流与水纹浮波 Demo</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #eaf3f8;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Noto Serif SC", serif;
+      color: #1e293b;
+    }
+    #ocean-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: crosshair;
+    }
+    .hud-header {
+      position: absolute;
+      top: 28px;
+      left: 36px;
+      z-index: 10;
+      pointer-events: none;
+    }
+    .hud-title {
+      font-size: 22px;
+      letter-spacing: 0.28em;
+      font-weight: 300;
+      color: #0f172a;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .hud-sub {
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      color: #475569;
+    }
+    .guide-tip {
+      position: absolute;
+      top: 28px;
+      right: 36px;
+      z-index: 10;
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      color: #475569;
+      pointer-events: none;
+      text-align: right;
+      line-height: 1.7;
+    }
+    .status-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #0284c7;
+      margin-right: 6px;
+      box-shadow: 0 0 8px rgba(2, 132, 199, 0.6);
+    }
+    .control-panel {
+      position: absolute;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.85);
+      padding: 7px 16px;
+      border-radius: 999px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04);
+    }
+    .style-pill {
+      background: transparent;
+      border: 1px solid transparent;
+      color: #334155;
+      padding: 6px 14px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      font-weight: 500;
+    }
+    .style-pill:hover {
+      background: rgba(255, 255, 255, 0.9);
+      color: #0369a1;
+    }
+    .style-pill.active {
+      background: #ffffff;
+      color: #0284c7;
+      border-color: rgba(2, 132, 199, 0.2);
+      box-shadow: 0 2px 8px rgba(2, 132, 199, 0.12);
+    }
+  </style>
+</head>
+<body>
+  <div class="hud-header">
+    <div class="hud-title">沧浪 · 浅海流禅 (Ocean Current Zen)</div>
+    <div class="hud-sub">浅色清透基底 · 涌流、潮汐层与水波涌动交互</div>
+  </div>
+
+  <div class="guide-tip">
+    <div><span class="status-dot"></span>流体动力场：高帧率自适应流场</div>
+    <div>在屏幕上轻划划过，感受被拨开的清澈洋流与光透焦散</div>
+  </div>
+
+  <div class="control-panel">
+    <button class="style-pill active" data-preset="aqua">琉璃浅滩 (Lagoon Aqua)</button>
+    <button class="style-pill" data-preset="deep">静谧蔚蓝 (Calm Deep)</button>
+    <button class="style-pill" data-preset="mineral">白垩碧波 (Mineral Teal)</button>
+    <button class="style-pill" data-preset="foam">潮白微澜 (Seafoam Mist)</button>
+  </div>
+
+  <canvas id="ocean-canvas"></canvas>
+
+  <script type="module">
+    const canvas = document.getElementById("ocean-canvas");
+    const ctx = canvas.getContext("2d", { alpha: false });
+
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+
+    function resize() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width * window.devicePixelRatio;
+      canvas.height = height * window.devicePixelRatio;
+      ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    // 浅色海水配色预设
+    const PRESETS = {
+      aqua: {
+        bgTop: "#f0f8fb",
+        bgBottom: "#d9ecf5",
+        streamA: "rgba(14, 165, 233, 0.12)",
+        streamB: "rgba(56, 189, 248, 0.18)",
+        caustic: "rgba(255, 255, 255, 0.65)",
+        ripple: "rgba(2, 132, 199, 0.35)",
+        particle: { r: 56, g: 189, b: 248 },
+      },
+      deep: {
+        bgTop: "#eaf2f8",
+        bgBottom: "#cfe0ee",
+        streamA: "rgba(37, 99, 235, 0.10)",
+        streamB: "rgba(96, 165, 250, 0.16)",
+        caustic: "rgba(255, 255, 255, 0.70)",
+        ripple: "rgba(29, 78, 216, 0.30)",
+        particle: { r: 59, g: 130, b: 246 },
+      },
+      mineral: {
+        bgTop: "#eff9f6",
+        bgBottom: "#d3efe6",
+        streamA: "rgba(13, 148, 136, 0.12)",
+        streamB: "rgba(45, 212, 191, 0.18)",
+        caustic: "rgba(255, 255, 255, 0.68)",
+        ripple: "rgba(15, 118, 110, 0.35)",
+        particle: { r: 20, g: 184, b: 166 },
+      },
+      foam: {
+        bgTop: "#f4f7f6",
+        bgBottom: "#e0ece8",
+        streamA: "rgba(71, 85, 105, 0.08)",
+        streamB: "rgba(148, 163, 184, 0.14)",
+        caustic: "rgba(255, 255, 255, 0.75)",
+        ripple: "rgba(71, 85, 105, 0.25)",
+        particle: { r: 100, g: 116, b: 139 },
+      }
+    };
+
+    let currentPreset = PRESETS.aqua;
+
+    // 1. 流动线群 (Streamlines) 模拟多层水流
+    const STREAM_COUNT = 60;
+    const streams = [];
+    for (let i = 0; i < STREAM_COUNT; i++) {
+      streams.push({
+        yBase: (height / STREAM_COUNT) * i,
+        speed: 0.4 + Math.random() * 0.8,
+        freq: 0.002 + Math.random() * 0.002,
+        amp: 16 + Math.random() * 32,
+        phase: Math.random() * Math.PI * 2,
+        width: 1.5 + Math.random() * 2.5,
+      });
+    }
+
+    // 2. 悬浮微气泡 / 浮游微光 (Marine Motes / Micro Bubbles)
+    const MOTE_COUNT = 140;
+    const motes = [];
+    for (let i = 0; i < MOTE_COUNT; i++) {
+      motes.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        vx: 0.2 + Math.random() * 0.5,
+        vy: (Math.random() - 0.5) * 0.3,
+        r: 1.2 + Math.random() * 3.5,
+        alpha: 0.2 + Math.random() * 0.5,
+        phase: Math.random() * 100,
+      });
+    }
+
+    // 3. 用户触控引发的洋流扰动与水纹涟漪 (Ripples & Current Eddies)
+    const ripples = [];
+    const eddies = []; // 流体漩涡
+
+    function triggerWaterTouch(x, y, vx = 0, vy = 0, isTap = false) {
+      // 产生清澈水波环
+      ripples.push({
+        x,
+        y,
+        radius: isTap ? 12 : 8,
+        maxRadius: isTap ? 220 : 140,
+        alpha: isTap ? 0.6 : 0.4,
+        speed: isTap ? 2.2 : 1.6,
+        rings: isTap ? 3 : 2,
+      });
+
+      // 注入水流推力
+      eddies.push({
+        x,
+        y,
+        vx: vx * 0.4,
+        vy: vy * 0.4,
+        radius: isTap ? 120 : 80,
+        strength: isTap ? 1.0 : 0.6,
+        life: 1.0,
+      });
+
+      if (ripples.length > 40) ripples.shift();
+      if (eddies.length > 25) eddies.shift();
+    }
+
+    let isDown = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    canvas.addEventListener("pointerdown", (e) => {
+      isDown = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      triggerWaterTouch(e.clientX, e.clientY, 0, 0, true);
+    });
+
+    canvas.addEventListener("pointermove", (e) => {
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      const dist = Math.hypot(dx, dy);
+
+      if (isDown) {
+        if (dist > 8) {
+          triggerWaterTouch(e.clientX, e.clientY, dx, dy, false);
+          lastX = e.clientX;
+          lastY = e.clientY;
+        }
+      } else if (dist > 25) {
+        // 轻移划水
+        triggerWaterTouch(e.clientX, e.clientY, dx * 0.3, dy * 0.3, false);
+        lastX = e.clientX;
+        lastY = e.clientY;
+      }
+    });
+
+    window.addEventListener("pointerup", () => isDown = false);
+
+    // 预设切换
+    document.querySelectorAll(".style-pill").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".style-pill").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentPreset = PRESETS[btn.dataset.preset];
+      });
+    });
+
+    let time = 0;
+
+    function render() {
+      time += 0.012;
+
+      // 1. 浅色清透渐变海床基底 (Gentle Water Gradient Background)
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+      bgGrad.addColorStop(0, currentPreset.bgTop);
+      bgGrad.addColorStop(1, currentPreset.bgBottom);
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // 2. 衰减并推进流体漩涡 (Eddies)
+      for (let i = eddies.length - 1; i >= 0; i--) {
+        const ed = eddies[i];
+        ed.x += ed.vx;
+        ed.y += ed.vy;
+        ed.vx *= 0.95;
+        ed.vy *= 0.95;
+        ed.life -= 0.009;
+        if (ed.life <= 0) {
+          eddies.splice(i, 1);
+        }
+      }
+
+      // 3. 绘制层叠的多层水流脉络 (Flowing Oceanic Ribbons)
+      ctx.save();
+      for (let s of streams) {
+        ctx.beginPath();
+        ctx.lineWidth = s.width;
+        ctx.strokeStyle = (s.width > 2.5) ? currentPreset.streamB : currentPreset.streamA;
+
+        let started = false;
+        const step = 20;
+
+        for (let x = 0; x <= width + step; x += step) {
+          // 基础流动波形
+          let wave = Math.sin(x * s.freq + time * s.speed + s.phase) * s.amp
+                   + Math.cos(x * 0.001 - time * 0.4) * (s.amp * 0.4);
+
+          let curY = s.yBase + wave;
+
+          // 叠加触控漩涡的流体力学吸扯与推挤
+          for (let ed of eddies) {
+            const dx = x - ed.x;
+            const dy = curY - ed.y;
+            const dSq = dx * dx + dy * dy;
+            const rSq = ed.radius * ed.radius;
+            if (dSq < rSq && dSq > 1) {
+              const d = Math.sqrt(dSq);
+              const force = (1 - d / ed.radius) * ed.strength * 28 * ed.life;
+              curY += (dy / d) * force;
+            }
+          }
+
+          if (!started) {
+            ctx.moveTo(x, curY);
+            started = true;
+          } else {
+            ctx.lineTo(x, curY);
+          }
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // 4. 水下光影透光焦散微亮斑 (Subsurface Caustic Light Glow)
+      ctx.save();
+      for (let ed of eddies) {
+        const grad = ctx.createRadialGradient(ed.x, ed.y, 0, ed.x, ed.y, ed.radius * 1.4);
+        grad.addColorStop(0, `rgba(255, 255, 255, ${(0.45 * ed.life).toFixed(3)})`);
+        grad.addColorStop(0.5, `rgba(255, 255, 255, ${(0.15 * ed.life).toFixed(3)})`);
+        grad.addColorStop(1, "rgba(255, 255, 255, 0)");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(ed.x, ed.y, ed.radius * 1.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // 5. 清澈同心水波涟漪 (Crisp Water Concentric Ripples)
+      ctx.save();
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const rip = ripples[i];
+        rip.radius += rip.speed;
+        rip.alpha -= 0.004;
+
+        if (rip.alpha <= 0 || rip.radius >= rip.maxRadius) {
+          ripples.splice(i, 1);
+          continue;
+        }
+
+        for (let r = 0; r < rip.rings; r++) {
+          const curR = rip.radius - r * 14;
+          if (curR <= 0) continue;
+          const ringA = Math.max(0, rip.alpha * (1 - r * 0.28)).toFixed(3);
+          ctx.strokeStyle = currentPreset.ripple.replace("0.35", ringA).replace("0.30", ringA).replace("0.25", ringA);
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.arc(rip.x, rip.y, curR, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+
+      // 6. 浮游气泡与浅海游丝粒子 (Floating Bubbles & Motes)
+      ctx.save();
+      for (let m of motes) {
+        m.x += m.vx + Math.sin(time + m.phase) * 0.35;
+        m.y += m.vy + Math.cos(time * 0.7 + m.phase) * 0.25;
+
+        // 漩涡吸引与推流
+        for (let ed of eddies) {
+          const dx = m.x - ed.x;
+          const dy = m.y - ed.y;
+          const dSq = dx * dx + dy * dy;
+          if (dSq < ed.radius * ed.radius) {
+            m.x += ed.vx * 0.15;
+            m.y += ed.vy * 0.15;
+          }
+        }
+
+        if (m.x > width + 20) m.x = -20;
+        if (m.y > height + 20) m.y = -20;
+        if (m.y < -20) m.y = height + 20;
+
+        const { r, g, b } = currentPreset.particle;
+        // 气泡高光感
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${m.alpha * 0.6})`;
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = `rgba(255, 255, 255, ${m.alpha * 0.8})`;
+        ctx.beginPath();
+        ctx.arc(m.x - m.r * 0.3, m.y - m.r * 0.3, m.r * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      requestAnimationFrame(render);
+    }
+
+    render();
+  </script>
+</body>
+</html>

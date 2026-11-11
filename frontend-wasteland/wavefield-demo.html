@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deep Ocean Wave Field · 真实浅海自然起伏与微澜 Demo</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #e3edf5;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", sans-serif;
+    }
+    #ocean-surface {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: pointer;
+    }
+    .hud {
+      position: absolute;
+      top: 24px;
+      left: 32px;
+      z-index: 10;
+      pointer-events: none;
+    }
+    .hud h1 {
+      font-size: 20px;
+      letter-spacing: 0.25em;
+      font-weight: 300;
+      color: #0f172a;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .hud p {
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      color: #475569;
+    }
+    .tip {
+      position: absolute;
+      top: 24px;
+      right: 32px;
+      z-index: 10;
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      color: #64748b;
+      pointer-events: none;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div class="hud">
+    <h1>海面呼吸 · 自然浪涌 (Ocean Surface Wavefield)</h1>
+    <p>连续高度场模拟 · 恒定的海潮呼吸涌动，触碰仅在水面荡起微漾涟漪</p>
+  </div>
+  <div class="tip">
+    <div>点击或滑动水面：激起浅层物理水纹</div>
+    <div>背景为海浪大尺度的恒定自然涌动</div>
+  </div>
+
+  <canvas id="ocean-surface"></canvas>
+
+  <script type="module">
+    const canvas = document.getElementById("ocean-surface");
+    const ctx = canvas.getContext("2d");
+
+    // 网格解析度：构建二维波动高度场 (2D Wave Equation Height Field)
+    const COLS = 130;
+    const ROWS = 80;
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+
+    let cellW = width / COLS;
+    let cellH = height / ROWS;
+
+    // 两个高度缓冲，用于物理波动方程迭代
+    let currentHeight = new Float32Array(COLS * ROWS);
+    let previousHeight = new Float32Array(COLS * ROWS);
+
+    function resize() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+      cellW = width / (COLS - 1);
+      cellH = height / (ROWS - 1);
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    // 触碰激起水面微澜 (掀起涟漪，而不是流体粒子或线条)
+    function disturbWater(screenX, screenY, strength = 18.0) {
+      const col = Math.floor((screenX / width) * COLS);
+      const row = Math.floor((screenY / height) * ROWS);
+      const radius = 3;
+
+      for (let r = -radius; r <= radius; r++) {
+        for (let c = -radius; c <= radius; c++) {
+          const tc = col + c;
+          const tr = row + r;
+          if (tc > 1 && tc < COLS - 1 && tr > 1 && tr < ROWS - 1) {
+            const dist = Math.hypot(c, r);
+            if (dist <= radius) {
+              const falloff = (1 - dist / radius);
+              const idx = tr * COLS + tc;
+              currentHeight[idx] += strength * falloff;
+            }
+          }
+        }
+      }
+    }
+
+    let isDown = false;
+    canvas.addEventListener("pointerdown", (e) => {
+      isDown = true;
+      disturbWater(e.clientX, e.clientY, 32.0);
+    });
+
+    canvas.addEventListener("pointermove", (e) => {
+      if (isDown) {
+        disturbWater(e.clientX, e.clientY, 14.0);
+      }
+    });
+
+    window.addEventListener("pointerup", () => isDown = false);
+
+    // 自然大洋深涌算法：Gerstner / 多波长正弦波叠加
+    let oceanTime = 0;
+    function getNaturalOceanSwell(x, y, t) {
+      // 3组不同方向与周期的自然海浪大涌
+      const wave1 = Math.sin(x * 0.0035 + y * 0.0022 - t * 0.95) * 14.0;
+      const wave2 = Math.sin(x * 0.0018 - y * 0.0038 + t * 0.75) * 10.0;
+      const wave3 = Math.cos(x * 0.0060 + y * 0.0045 + t * 1.35) * 5.0;
+      // 微小潮汐呼吸感
+      const swell = Math.sin(t * 0.35) * 4.0;
+      return wave1 + wave2 + wave3 + swell;
+    }
+
+    // 预分配用于高效像素渲染的 ImageData
+    let imgData = ctx.createImageData(width, height);
+    let data32 = new Uint32Array(imgData.data.buffer);
+
+    function stepWaveSimulation() {
+      const damping = 0.968; // 涟漪在水中自然阻尼平复
+      const cSq = 0.42;      // 波速常数
+
+      for (let r = 1; r < ROWS - 1; r++) {
+        const rowOffset = r * COLS;
+        for (let c = 1; c < COLS - 1; c++) {
+          const idx = rowOffset + c;
+
+          // 离散拉普拉斯算子
+          const laplacian =
+            currentHeight[idx - 1] +
+            currentHeight[idx + 1] +
+            currentHeight[idx - COLS] +
+            currentHeight[idx + COLS] -
+            4 * currentHeight[idx];
+
+          // 二维波动方程: h(t+dt) = 2*h(t) - h(t-dt) + c^2 * laplacian
+          let next = 2 * currentHeight[idx] - previousHeight[idx] + cSq * laplacian;
+          next *= damping;
+
+          previousHeight[idx] = next;
+        }
+      }
+
+      // 交换缓冲指针
+      const temp = currentHeight;
+      currentHeight = previousHeight;
+      previousHeight = temp;
+    }
+
+    // 渲染海面
+    function render() {
+      oceanTime += 0.016;
+
+      // 1. 迭代水纹物理方程
+      stepWaveSimulation();
+
+      // 2. 绘制整个连续起伏的海面网格与光影反射 (法线法与光照高光)
+      ctx.fillStyle = "#dcebf5";
+      ctx.fillRect(0, 0, width, height);
+
+      // 构建光照渲染：计算每一个网格节点的法线坡度 (Normal Slope)
+      // 太阳入射光向量 (来自左上方柔和天光)
+      const lightX = 0.55;
+      const lightY = 0.65;
+      const lightZ = 0.8;
+
+      ctx.save();
+      // 使用半透明多边形连续绘制网格曲面
+      for (let r = 0; r < ROWS - 1; r += 2) {
+        ctx.beginPath();
+        for (let c = 0; c < COLS; c += 2) {
+          const px = c * cellW;
+          const py = r * cellH;
+
+          // 核心：自然起伏 (Swell) + 触控引起的微澜涟漪 (Ripples)
+          const rippleH = currentHeight[r * COLS + c];
+          const oceanH = getNaturalOceanSwell(px, py, oceanTime);
+          const totalH = oceanH + rippleH;
+
+          // 坡度/梯度估算 (差分求法向量)
+          const nextH_X = getNaturalOceanSwell(px + 20, py, oceanTime) + currentHeight[r * COLS + Math.min(COLS - 1, c + 1)];
+          const nextH_Y = getNaturalOceanSwell(px, py + 20, oceanTime) + currentHeight[Math.min(ROWS - 1, r + 1) * COLS + c];
+
+          const slopeX = (nextH_X - totalH) * 0.08;
+          const slopeY = (nextH_Y - totalH) * 0.08;
+
+          // 漫反射光强 + 镜面微光
+          const diffuse = slopeX * lightX + slopeY * lightY;
+          const brightness = Math.max(-0.25, Math.min(0.45, diffuse));
+
+          // 浅色海域色彩基准：浅天青 -> 冰川蓝 -> 浪尖微白
+          let baseR = 210 + brightness * 55;
+          let baseG = 230 + brightness * 40;
+          let baseB = 244 + brightness * 20;
+
+          // 浪尖与涟漪折射亮线 (Caustic glint)
+          if (Math.abs(rippleH) > 3.0) {
+            const crest = Math.min(1.0, Math.abs(rippleH) / 18.0);
+            baseR = baseR * (1 - crest) + 255 * crest;
+            baseG = baseG * (1 - crest) + 255 * crest;
+            baseB = baseB * (1 - crest) + 255 * crest;
+          }
+
+          baseR = Math.max(160, Math.min(255, Math.round(baseR)));
+          baseG = Math.max(195, Math.min(255, Math.round(baseG)));
+          baseB = Math.max(220, Math.min(255, Math.round(baseB)));
+
+          // 在海浪起伏点绘制流动光带
+          ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`;
+          ctx.fillRect(px, py + totalH * 0.45, cellW * 2 + 1, cellH * 2 + 1);
+        }
+      }
+
+      // 3. 优雅的浅海等高线起伏水纹 (Organic Wave Iso-lines)
+      // 这让整片浅色水体呈现出“活的、呼吸的、舒缓涌动”的大洋形态
+      ctx.lineWidth = 1.2;
+      for (let w = 0; w < 6; w++) {
+        const targetElevation = (w - 2.5) * 7.0;
+        ctx.strokeStyle = `rgba(255, 255, 255, ${0.28 + w * 0.05})`;
+        ctx.beginPath();
+        for (let x = 0; x <= width; x += 15) {
+          const yWave = (height * (w + 1)) / 7;
+          const swell = getNaturalOceanSwell(x, yWave, oceanTime);
+          const col = Math.floor((x / width) * (COLS - 1));
+          const row = Math.floor((yWave / height) * (ROWS - 1));
+          const rip = currentHeight[row * COLS + col] || 0;
+
+          const finalY = yWave + swell * 1.5 + rip * 0.8;
+          if (x === 0) ctx.moveTo(x, finalY);
+          else ctx.lineTo(x, finalY);
+        }
+        ctx.stroke();
+      }
+
+      ctx.restore();
+
+      requestAnimationFrame(render);
+    }
+
+    render();
+  </script>
+</body>
+</html>

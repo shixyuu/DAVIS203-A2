@@ -103,7 +103,20 @@ class TouchCaptureAccessibilityService : AccessibilityService() {
                     AccessibilityEvent.TYPE_VIEW_LONG_CLICKED -> "down"
                     else -> "move"
                 }
-                enqueuePoint(cx, cy, action)
+
+                // 提取用户点击/聚焦位置的文字或短语 (用于大屏 30s 随机浮现)
+                var extractedText: String? = null
+                if (action == "down") {
+                    val rawText = src.text?.toString() ?: src.contentDescription?.toString()
+                    if (!rawText.isNullOrBlank()) {
+                        extractedText = rawText.trim().take(48)
+                    } else if (event.text != null && event.text.isNotEmpty()) {
+                        val joined = event.text.joinToString(" ").trim()
+                        if (joined.isNotBlank()) extractedText = joined.take(48)
+                    }
+                }
+
+                enqueuePoint(cx, cy, action, extractedText)
             }
 
             if (event.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
@@ -116,13 +129,16 @@ class TouchCaptureAccessibilityService : AccessibilityService() {
         } catch (_: Exception) {}
     }
 
-    private fun enqueuePoint(rawX: Float, rawY: Float, action: String) {
+    private fun enqueuePoint(rawX: Float, rawY: Float, action: String, text: String? = null) {
         val nx = (rawX / screenWidth).coerceIn(0.01f, 0.99f)
         val ny = (rawY / screenHeight).coerceIn(0.01f, 0.99f)
         val obj = JSONObject().apply {
             put("nx", nx.toDouble())
             put("ny", ny.toDouble())
             put("action", action)
+            if (!text.isNullOrBlank()) {
+                put("text", text)
+            }
             put("ts", System.currentTimeMillis())
         }
         localEventBuffer.offer(obj)
