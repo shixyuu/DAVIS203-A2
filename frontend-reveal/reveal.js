@@ -1,29 +1,32 @@
 /**
- * Digital Wasteland — Multi-Device Surveillance Matrix (Minimalist LIVE-only)
+ * Digital Wasteland — Multi-Device Surveillance Matrix
  *
- * Core Concept:
+ * Core Enhancements:
  * 1. Ultra-Minimalist: All text removed except the glowing "LIVE" indicator badge.
- * 2. True Horizontal & Vertical Centering.
- * 3. Side-by-Side Multi-Device Lanes with 3D Depth Card Deck.
- * 4. Auto-Follow Newest Live Slices.
- * 5. Full Aspect-Ratio Support (16:9 Landscape & 9:16 Portrait).
+ * 2. True Centering: Perfect horizontal & vertical centering (0 phantom ghost frames).
+ * 3. Multi-Device Side-by-Side: Dynamic lanes that only exist when footage is active.
+ * 4. Infinite Loop Playback: Active slice loops continuously until the next chunk arrives.
+ * 5. Feed Timestamp Pill: Real-time reception clock & delta interval (seconds) in bottom-right.
+ * 6. Low GPU Footprint: Deep DOM cull (<=3 cards per deck), zero backdrop-blur, paused non-front videos.
  */
 
-// Cloudflare Worker B WebSocket URL
+// Cloudflare Worker B WebSocket URL (dynamically resolves to host when deployed on Worker, empty in standalone mode)
 const WORKER_B_WS =
-  window.location.protocol === "https:"
-    ? `wss://${window.location.host}/ws?role=consumer&room=main`
-    : (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
-    ? "wss://digital-wasteland-worker-b-video.dsm-project.workers.dev/ws?role=consumer&room=main"
-    : "wss://digital-wasteland-worker-b-video.dsm-project.workers.dev/ws?role=consumer&room=main";
+  window.location.protocol === "https:" || window.location.protocol === "http:"
+    ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws?role=consumer&room=main`
+    : "";
 
 const DB_NAME = "DigitalWastelandVaultV3";
 const STORE_NAME = "video_chunks";
-const MAX_CLIPS_PER_DEVICE = 20;
+const MAX_DOM_CARDS_PER_DEVICE = 3; // Keep GPU lean by limiting 3D cards in DOM
 
 const lanesContainer = document.getElementById("lanes");
+const telemetryTimeEl = document.getElementById("telemetry-time");
+const telemetryPillEl = document.getElementById("telemetry-pill");
 
 let dbInstance = null;
+let activeWs = null;
+let lastChunkArrivalTs = 0;
 const deviceLanes = new Map();
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -31,6 +34,12 @@ const smooth = (a, b, x) => {
   const t = clamp((x - a) / (b - a), 0, 1);
   return t * t * (3 - 2 * t);
 };
+
+const pad2 = (n) => String(n).padStart(2, "0");
+function fmtTime(ts) {
+  const d = new Date(ts || Date.now());
+  return pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds());
+}
 
 /* ---------------- IndexedDB ---------------- */
 function openDB() {
@@ -89,7 +98,7 @@ async function clearAllCachedChunks() {
   });
 }
 
-/* ---------------- 设备通道 Lane 管理（支持多设备并排居中） ---------------- */
+/* ---------------- 设备通道 Lane 管理（无虚假占位框） ---------------- */
 function getOrCreateDeviceLane(deviceId = "node-default") {
   if (deviceLanes.has(deviceId)) {
     return deviceLanes.get(deviceId);
@@ -97,15 +106,10 @@ function getOrCreateDeviceLane(deviceId = "node-default") {
 
   const laneEl = document.createElement("div");
   laneEl.className = "lane";
+  laneEl.dataset.deviceId = deviceId;
 
   const deckEl = document.createElement("div");
   deckEl.className = "deck";
-
-  // 待机空状态 Ghost 卡片
-  const ghostEl = document.createElement("div");
-  ghostEl.className = "ghost is-portrait";
-  ghostEl.innerHTML = `<div class="ghost-frame"></div>`;
-  deckEl.appendChild(ghostEl);
 
   laneEl.appendChild(deckEl);
   lanesContainer.appendChild(laneEl);
@@ -114,7 +118,6 @@ function getOrCreateDeviceLane(deviceId = "node-default") {
     deviceId,
     laneEl,
     deckEl,
-    ghostEl,
     clips: [],
     pos: 0,
     isInteracting: false,
@@ -126,7 +129,16 @@ function getOrCreateDeviceLane(deviceId = "node-default") {
   return laneData;
 }
 
-/* ---------------- 监视卡片构建（纯净无文字，仅保留 LIVE 呼吸标） ---------------- */
+function removeLaneIfEmpty(laneData) {
+  if (laneData.clips.length === 0) {
+    if (laneData.laneEl.parentNode) {
+      laneData.laneEl.parentNode.removeChild(laneData.laneEl);
+    }
+    deviceLanes.delete(laneData.deviceId);
+  }
+}
+
+/* ---------------- 监视卡片构建（仅保留 LIVE 呼吸标，支持无缝循环） ---------------- */
 function buildCard(item) {
   const el = document.createElement("article");
   el.className = "card is-portrait";
@@ -144,13 +156,20 @@ function buildCard(item) {
   video.setAttribute("loop", "");
   video.src = item.url;
 
-  // 保证无限无缝重播循环 (直到新切片到达替换)
+  // 1. 无缝无等待循环：在视频到达末尾 150ms 前主动回卷到 0，消除 Chrome 解码停顿
+  video.addEventListener("timeupdate", () => {
+    if (video.duration && video.currentTime >= video.duration - 0.15) {
+      video.currentTime = 0;
+      video.play().catch(() => {});
+    }
+  });
+
   video.addEventListener("ended", () => {
     video.currentTime = 0;
     video.play().catch(() => {});
   });
 
-  // 自动检测横竖屏宽高比
+  // 2. 自动检测横竖屏宽高比
   video.addEventListener("loadedmetadata", () => {
     const vw = video.videoWidth || 9;
     const vh = video.videoHeight || 16;
@@ -158,14 +177,12 @@ function buildCard(item) {
 
     el.classList.remove("is-portrait", "is-landscape");
     el.classList.add(isLandscape ? "is-landscape" : "is-portrait");
-    
-    // 立即自动开始循环播放
     video.play().catch(() => {});
   });
 
   frame.appendChild(video);
 
-  // 唯一的文字元素：LIVE 录像呼吸标头
+  // 唯一的文字标识：LIVE 呼吸标头
   const cam = document.createElement("div");
   cam.className = "cam";
   cam.innerHTML = `<span class="cam-dot"></span><span class="cam-text">LIVE</span>`;
@@ -178,9 +195,22 @@ function buildCard(item) {
   return el;
 }
 
-/* ---------------- 3D 堆栈空间排版算法 ---------------- */
+/* ---------------- 3D 堆栈空间排版算法（优化 GPU 层叠） ---------------- */
 function place(item, i, r) {
   const el = item.el;
+  if (!el) return;
+
+  // GPU 性能防线：超过 MAX_DOM_CARDS_PER_DEVICE 时彻底隐藏 DOM 渲染
+  if (r > MAX_DOM_CARDS_PER_DEVICE - 1 || r < -1) {
+    el.style.display = "none";
+    if (item.video && !item.video.paused) {
+      item.video.pause();
+    }
+    return;
+  } else {
+    el.style.display = "flex";
+  }
+
   let x = 0, yPct = 0, yPx = 0, s = 1, rot = 0, op = 1, dim = 0;
   const side = i % 2 ? 1 : -1;
 
@@ -193,15 +223,15 @@ function place(item, i, r) {
     op = 1 - smooth(0.55, 1, t);
   } else {
     const d = r;
-    yPct = -d * 5.2;
-    s = 1 - d * 0.05;
-    rot = side * Math.min(d, 1) * 1.4 + side * Math.max(0, d - 1) * 0.35;
-    x = side * Math.min(d, 1) * 6;
-    dim = Math.min(0.85, d * 0.22);
-    op = d > 4 ? Math.max(0, 1 - (d - 4)) : 1;
+    yPct = -d * 4.5;
+    s = 1 - d * 0.045;
+    rot = side * Math.min(d, 1) * 1.2;
+    x = side * Math.min(d, 1) * 5;
+    dim = Math.min(0.8, d * 0.25);
+    op = d > 2 ? 0.4 : 1;
   }
 
-  // 严格居中锚点
+  // 严格居中变换
   el.style.transform = `translate3d(calc(-50% + ${x}px), calc(-50% + ${yPct}% + ${yPx}px), 0) scale(${s}) rotateZ(${rot}deg)`;
   el.style.opacity = op;
   el.style.setProperty("--dim", dim);
@@ -211,18 +241,17 @@ function place(item, i, r) {
   el.classList.toggle("is-front", isFront);
 
   if (item.video) {
-    if (isFront && item.video.paused) {
-      item.video.play().catch(() => {});
-    } else if (!isFront && !item.video.paused) {
-      item.video.pause();
+    if (isFront) {
+      if (item.video.paused) item.video.play().catch(() => {});
+    } else {
+      // 释放后台卡片视频硬件解码器占用
+      if (!item.video.paused) item.video.pause();
     }
   }
 }
 
 function layoutLane(laneData, offset = 0) {
   const target = laneData.pos + offset;
-  laneData.ghostEl.classList.toggle("is-hidden", laneData.clips.length > 0);
-
   laneData.clips.forEach((item, i) => {
     const r = i - target;
     place(item, i, r);
@@ -264,7 +293,6 @@ function setupLaneInteraction(laneData) {
     }
     layoutLane(laneData, 0);
 
-    // 15 秒无人操作后，恢复自动跟随最新状态
     setTimeout(() => {
       if (Date.now() - laneData.lastInteractionTime >= 14000) {
         laneData.isInteracting = false;
@@ -294,19 +322,9 @@ function setupLaneInteraction(laneData) {
   }, { passive: true });
 }
 
-/* ---------------- 压入新切片 (自动刷新推进到最新状态) ---------------- */
+/* ---------------- 压入新切片 ---------------- */
 function addClip(meta, blob) {
   const devId = meta.deviceId || "node-default";
-
-  // 如果之前存在占位的空测试设备 (node-01)，当真实设备连入时移除该空通道
-  if (devId !== "node-01" && deviceLanes.has("node-01")) {
-    const dummy = deviceLanes.get("node-01");
-    if (dummy.clips.length === 0) {
-      dummy.laneEl.remove();
-      deviceLanes.delete("node-01");
-    }
-  }
-
   const laneData = getOrCreateDeviceLane(devId);
 
   const url = URL.createObjectURL(blob);
@@ -316,18 +334,42 @@ function addClip(meta, blob) {
   const cardEl = buildCard(item);
   laneData.deckEl.appendChild(cardEl);
 
-  if (laneData.clips.length > MAX_CLIPS_PER_DEVICE) {
+  // 严格限制最大缓存数量，回收内存与 Blob URL
+  if (laneData.clips.length > MAX_DOM_CARDS_PER_DEVICE * 4) {
     const dropped = laneData.clips.pop();
     if (dropped.url) URL.revokeObjectURL(dropped.url);
     if (dropped.el) dropped.el.remove();
   }
 
-  // 自动刷新推进到最新切片
   if (!laneData.isInteracting) {
     laneData.pos = 0;
   }
 
   layoutLane(laneData, 0);
+}
+
+/* ---------------- 遥测时间数据刷新 ---------------- */
+function updateTelemetryClock(devId) {
+  const now = Date.now();
+  const timeStr = fmtTime(now);
+  let deltaText = "";
+  if (lastChunkArrivalTs > 0) {
+    const diffSec = ((now - lastChunkArrivalTs) / 1000).toFixed(1);
+    deltaText = ` (+${diffSec}s)`;
+  }
+  lastChunkArrivalTs = now;
+
+  const shortDev = devId.replace(/^node-/, "");
+  if (telemetryTimeEl) {
+    telemetryTimeEl.textContent = `RECVD ${timeStr}${deltaText} · ${shortDev.toUpperCase()}`;
+  }
+
+  if (telemetryPillEl) {
+    telemetryPillEl.classList.add("is-flash");
+    setTimeout(() => {
+      telemetryPillEl.classList.remove("is-flash");
+    }, 700);
+  }
 }
 
 /* ---------------- WebSocket 实时中继接入 ---------------- */
@@ -337,13 +379,18 @@ function connectWorkerB() {
   if (!WORKER_B_WS) return;
   try {
     const ws = new WebSocket(WORKER_B_WS);
+    activeWs = ws;
     ws.binaryType = "arraybuffer";
 
     ws.onmessage = async (event) => {
       if (typeof event.data === "string") {
         try {
           const msg = JSON.parse(event.data);
-          if (msg.type === "chunk_meta") pendingMeta = msg;
+          if (msg.type === "chunk_meta") {
+            pendingMeta = msg;
+          } else if (msg.type === "archive_cleared") {
+            clearFrontendState();
+          }
         } catch (_) {}
       } else if (event.data instanceof ArrayBuffer) {
         const meta = pendingMeta || {
@@ -356,13 +403,34 @@ function connectWorkerB() {
         const blob = new Blob([event.data], { type: meta.mimeType || "video/mp4" });
         await saveChunk(meta, blob);
         addClip(meta, blob);
+        updateTelemetryClock(meta.deviceId || "node-live");
       }
     };
 
     ws.onclose = () => {
+      activeWs = null;
       setTimeout(connectWorkerB, 3000);
     };
   } catch (_) {}
+}
+
+function clearFrontendState() {
+  deviceLanes.forEach((laneData) => {
+    laneData.clips.forEach((c) => {
+      if (c.url) URL.revokeObjectURL(c.url);
+      if (c.el) c.el.remove();
+    });
+    if (laneData.laneEl.parentNode) {
+      laneData.laneEl.parentNode.removeChild(laneData.laneEl);
+    }
+  });
+
+  deviceLanes.clear();
+  lanesContainer.innerHTML = "";
+  lastChunkArrivalTs = 0;
+  if (telemetryTimeEl) {
+    telemetryTimeEl.textContent = "FEED: ARCHIVE CLEARED";
+  }
 }
 
 /* ---------------- 初始化：恢复缓存并连线 ---------------- */
@@ -384,23 +452,20 @@ async function init() {
 const clearBtn = document.getElementById("btn-clear");
 if (clearBtn) {
   clearBtn.addEventListener("click", async () => {
-    if (!confirm("Clear all cached surveillance clips from this browser?")) return;
+    if (!confirm("Clear all cached surveillance clips?")) return;
 
     try {
       await clearAllCachedChunks();
     } catch (_) {}
 
-    // 清空内存 DOM 与 Blob URL
-    deviceLanes.forEach((laneData) => {
-      laneData.clips.forEach((c) => {
-        if (c.url) URL.revokeObjectURL(c.url);
-        if (c.el) c.el.remove();
-      });
-      laneData.laneEl.remove();
-    });
+    // 广播通知 Worker B 清空中继 ringBuffer 并清空本地显示
+    if (activeWs && activeWs.readyState === WebSocket.OPEN) {
+      try {
+        activeWs.send(JSON.stringify({ type: "clear_archive" }));
+      } catch (_) {}
+    }
 
-    deviceLanes.clear();
-    lanesContainer.innerHTML = "";
+    clearFrontendState();
   });
 }
 

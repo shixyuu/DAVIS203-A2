@@ -63,7 +63,7 @@ class ScreenChunkRecorderService : Service() {
 
     private val isRecording = AtomicBoolean(false)
     private val chunkCounter = AtomicInteger(0)
-    private val uploadExecutor = Executors.newSingleThreadExecutor()
+    private val uploadExecutor = Executors.newFixedThreadPool(2)
     private val mainHandler = Handler(Looper.getMainLooper())
 
     @Suppress("DEPRECATION")

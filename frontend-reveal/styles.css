@@ -1,15 +1,13 @@
 :root {
   --bg: #090e13;
   --bg-top: #0d151d;
-  --panel: rgba(14, 22, 30, 0.88);
+  --panel: rgba(14, 22, 30, 0.9);
   --panel-border: rgba(56, 189, 248, 0.22);
   --panel-glow: rgba(56, 189, 248, 0.15);
   --ocean-accent: #38bdf8;
   --ocean-teal: #2dd4bf;
   --rec: #f43f5e;
   --font: "Michroma", system-ui, sans-serif;
-  --pad: clamp(16px, 2.5vw, 36px);
-  --spring: cubic-bezier(0.18, 0.9, 0.22, 1.1);
 }
 
 * {
@@ -29,10 +27,10 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* 浅海/深海微光背景，与 WA 保持统一意境 */
+/* 浅海/深海微光环境，极简轻量，彻底减轻 GPU 重绘负担 */
 body {
   background:
-    radial-gradient(circle 800px at 50% 50%, rgba(14, 165, 233, 0.08), transparent 75%),
+    radial-gradient(circle 900px at 50% 50%, rgba(14, 165, 233, 0.08), transparent 75%),
     linear-gradient(180deg, var(--bg-top) 0%, var(--bg) 100%);
 }
 
@@ -41,11 +39,9 @@ body {
   position: fixed;
   inset: 0;
   z-index: 1;
-  opacity: 0.55;
-  background-image:
-    radial-gradient(rgba(56, 189, 248, 0.1) 1px, transparent 1px),
-    repeating-linear-gradient(0deg, transparent 0, transparent 3px, rgba(0, 0, 0, 0.15) 4px);
-  background-size: 32px 32px, 100% 4px;
+  opacity: 0.35;
+  background-image: radial-gradient(rgba(56, 189, 248, 0.08) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
 /* 核心舞台：绝对正中央居中 */
@@ -56,9 +52,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
-/* 设备通道网格：多台设备水平并排且整组保持水平垂直居中 */
+/* 设备通道网格：多台设备水平并排且整组保持水平垂直绝对居中 */
 .device-lanes {
   display: flex;
   flex-direction: row;
@@ -69,7 +66,7 @@ body {
   height: 100%;
 }
 
-/* 单个设备通道列 */
+/* 单个设备通道列：启用 CSS 隔离提升渲染性能 */
 .lane {
   position: relative;
   display: flex;
@@ -77,6 +74,7 @@ body {
   justify-content: center;
   flex: 0 0 auto;
   height: 100%;
+  contain: layout style;
 }
 
 /* 3D 卡片卡组视口：绝对居中锚点 */
@@ -88,35 +86,31 @@ body {
   align-items: center;
   justify-content: center;
   cursor: grab;
-  perspective: 1400px;
+  perspective: 1200px;
 }
 .deck.is-dragging { cursor: grabbing; }
 
-/* 纯净无文字监视卡片：WA 风格磨砂水玻质感 */
-.card, .ghost {
+/* 纯净无文字监视卡片：开启 DirectComposition 与严格隔离优化 GPU */
+.card {
   position: absolute;
   left: 50%;
   top: 50%;
   display: flex;
-  background: var(--panel);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: #0c131a;
   border: 1px solid var(--panel-border);
   border-radius: 12px;
   overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  contain: layout paint;
   will-change: transform, opacity;
-  box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.55),
-    0 0 24px var(--panel-glow),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform-origin: center center;
   transition:
-    transform 0.65s var(--spring),
-    opacity 0.45s ease,
-    box-shadow 0.45s ease;
+    transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.25s ease;
 }
 
 /* 竖屏 9:16 自适应尺寸 */
-.card.is-portrait, .ghost.is-portrait {
+.card.is-portrait {
   --video-h: min(72vh, 660px);
   --video-w: calc(var(--video-h) * 9 / 16);
   width: var(--video-w);
@@ -124,7 +118,7 @@ body {
 }
 
 /* 横屏 16:9 自适应尺寸 */
-.card.is-landscape, .ghost.is-landscape {
+.card.is-landscape {
   --video-w: min(44vw, 560px);
   --video-h: calc(var(--video-w) * 9 / 16);
   width: var(--video-w);
@@ -133,10 +127,10 @@ body {
 
 .deck.is-dragging .card { transition: none; }
 .card:not(.is-front) {
-  border-color: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.08);
 }
 
-/* 视频画框 */
+/* 视频画框与视频硬件平铺层 */
 .card .frame {
   position: relative;
   width: 100%;
@@ -151,9 +145,11 @@ body {
   object-fit: cover;
   display: block;
   background: #000;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
-/* 景深遮罩 */
+/* 景深遮罩：仅在有景深距离时触发 */
 .card::after {
   content: "";
   position: absolute;
@@ -161,10 +157,9 @@ body {
   background: #070d14;
   opacity: var(--dim, 0);
   pointer-events: none;
-  transition: opacity 0.4s ease;
 }
 
-/* 仅保留 LIVE 呼吸标头 */
+/* 仅保留 LIVE 呼吸标头 (左上角) */
 .card .cam {
   position: absolute;
   top: 14px;
@@ -174,9 +169,8 @@ body {
   gap: 7px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: rgba(10, 16, 22, 0.75);
+  background: rgba(10, 16, 22, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(8px);
   z-index: 5;
 }
 .card .cam-dot {
@@ -184,55 +178,81 @@ body {
   height: 6px;
   border-radius: 50%;
   background: var(--rec);
-  box-shadow: 0 0 8px var(--rec);
-  animation: rec 1.8s infinite;
+  box-shadow: 0 0 8px rgba(244, 63, 94, 0.6);
+  animation: pulse-live 1.8s infinite ease-in-out;
+}
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
 }
 .card .cam-text {
   font-size: 8px;
   letter-spacing: 0.22em;
   color: #fff;
 }
-@keyframes rec { 50% { opacity: 0.3; } }
 
-/* 待机空状态卡片 */
-.ghost {
-  border-color: rgba(56, 189, 248, 0.12);
-  background: rgba(14, 22, 30, 0.45);
-}
-.ghost.is-hidden { opacity: 0; pointer-events: none; }
-.ghost-frame {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(145deg, rgba(56, 189, 248, 0.04), transparent 60%);
-}
-
-/* 右下角极简低调的清除缓存按钮 */
-.btn-clear {
+/* 右下角极简低调的遥测时间与清除缓存控件组 */
+.bottom-controls {
   position: fixed;
   bottom: clamp(16px, 2.5vw, 28px);
   right: clamp(16px, 2.5vw, 28px);
   z-index: 60;
   display: flex;
   align-items: center;
+  gap: 10px;
+}
+
+.telemetry-pill {
+  display: flex;
+  align-items: center;
   gap: 7px;
-  padding: 8px 14px;
+  padding: 7px 12px;
   font-family: var(--font);
   font-size: 8px;
-  letter-spacing: 0.22em;
-  color: rgba(136, 169, 190, 0.45);
-  background: rgba(10, 16, 22, 0.6);
+  letter-spacing: 0.16em;
+  color: var(--ocean-teal);
+  background: rgba(10, 16, 22, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  transition: all 0.3s ease;
+}
+.telemetry-pill.is-flash {
+  border-color: var(--ocean-teal);
+  box-shadow: 0 0 12px rgba(45, 212, 191, 0.35);
+}
+.telemetry-pill .pill-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ocean-teal);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+.telemetry-pill.is-flash .pill-dot {
+  background: #38bdf8;
+  transform: scale(1.4);
+}
+
+.btn-clear {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  font-family: var(--font);
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  color: rgba(136, 169, 190, 0.5);
+  background: rgba(10, 16, 22, 0.65);
   border: 1px solid rgba(56, 189, 248, 0.12);
   border-radius: 999px;
-  backdrop-filter: blur(10px);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   outline: none;
 }
 .btn-clear:hover {
   color: #ff4848;
-  border-color: rgba(255, 72, 72, 0.35);
-  background: rgba(14, 22, 30, 0.88);
-  box-shadow: 0 0 16px rgba(255, 72, 72, 0.18);
+  border-color: rgba(255, 72, 72, 0.4);
+  background: rgba(14, 22, 30, 0.95);
 }
 .btn-clear:active {
   transform: scale(0.96);

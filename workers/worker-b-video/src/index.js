@@ -217,6 +217,15 @@ export class VideoChunkRelayRoom {
           ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
           return;
         }
+        if (parsed.type === "clear_archive") {
+          this.recentRingBuffer = [];
+          for (const consumer of this.state.getWebSockets("consumer")) {
+            try {
+              consumer.send(JSON.stringify({ type: "archive_cleared" }));
+            } catch (_) {}
+          }
+          return;
+        }
       } catch (_) {}
     }
   }

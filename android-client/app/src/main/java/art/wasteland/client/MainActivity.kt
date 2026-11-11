@@ -29,28 +29,28 @@ import java.util.concurrent.Executors
 
 /**
  * Material You / Material Design 3 (MD3) Telemetry Client
- * - 纯净 MD3 配色体系 (Surface, Primary, Secondary Container, Error Container)
- * - 自动记忆输入过的服务器历史地址 (Auto Address Memory)
- * - 启动 (START) 与 停止 (STOP) 录屏分片传输按钮
+ * - Standalone Zero-Configuration Mode (No URL input required)
+ * - Optional Advanced Custom Relay settings (collapsed by default)
+ * - Single-click START and STOP controls
  */
 class MainActivity : Activity() {
 
     companion object {
         private const val REQ_PROJECTION = 2001
 
-        // MD3 调色板 (Material 3 Dark/Tonal Elevation Palette)
-        private val MD3_SURFACE = Color.parseColor("#101418")            // Surface Base
-        private val MD3_SURFACE_CONTAINER = Color.parseColor("#1B2026")  // Card container
-        private val MD3_SURFACE_HIGH = Color.parseColor("#252A30")       // High container / input field
-        private val MD3_PRIMARY = Color.parseColor("#A8C8E8")            // Primary accent (Light Sky)
-        private val MD3_ON_PRIMARY = Color.parseColor("#10324D")         // On primary
-        private val MD3_PRIMARY_CONTAINER = Color.parseColor("#274865")  // Primary Container
+        // MD3 调色板
+        private val MD3_SURFACE = Color.parseColor("#101418")
+        private val MD3_SURFACE_CONTAINER = Color.parseColor("#1B2026")
+        private val MD3_SURFACE_HIGH = Color.parseColor("#252A30")
+        private val MD3_PRIMARY = Color.parseColor("#A8C8E8")
+        private val MD3_ON_PRIMARY = Color.parseColor("#10324D")
+        private val MD3_PRIMARY_CONTAINER = Color.parseColor("#274865")
         private val MD3_ON_PRIMARY_CONTAINER = Color.parseColor("#CDE5FF")
-        private val MD3_OUTLINE = Color.parseColor("#42474E")            // Border outline
-        private val MD3_ON_SURFACE = Color.parseColor("#E0E2E8")         // Main text
-        private val MD3_ON_SURFACE_VARIANT = Color.parseColor("#C2C7CF") // Subtitle text
-        private val MD3_SUCCESS = Color.parseColor("#80D5A3")            // Status green
-        private val MD3_ERROR_CONTAINER = Color.parseColor("#8C1D18")    // Stop / Error red
+        private val MD3_OUTLINE = Color.parseColor("#42474E")
+        private val MD3_ON_SURFACE = Color.parseColor("#E0E2E8")
+        private val MD3_ON_SURFACE_VARIANT = Color.parseColor("#C2C7CF")
+        private val MD3_SUCCESS = Color.parseColor("#80D5A3")
+        private val MD3_ERROR_CONTAINER = Color.parseColor("#8C1D18")
         private val MD3_ON_ERROR_CONTAINER = Color.parseColor("#F9DEDC")
     }
 
@@ -61,6 +61,8 @@ class MainActivity : Activity() {
     private lateinit var connectBtn: Button
     private lateinit var startBtn: Button
     private lateinit var stopBtn: Button
+    private lateinit var advancedContainer: LinearLayout
+    private lateinit var toggleAdvancedBtn: TextView
     private lateinit var historyChipContainer: LinearLayout
 
     private val netExecutor = Executors.newSingleThreadExecutor()
@@ -155,7 +157,7 @@ class MainActivity : Activity() {
         statusCard.addView(statusBadge)
 
         statusDetail = TextView(this).apply {
-            text = "Configured for Cloudflare Worker edge relay."
+            text = if (savedTouch.isNotBlank()) "Configured for custom relay: $savedTouch" else "Ready for standalone telemetry. Zero URL setup required."
             textSize = 12f
             setTextColor(MD3_ON_SURFACE_VARIANT)
             setPadding(0, dp(6), 0, 0)
@@ -163,78 +165,11 @@ class MainActivity : Activity() {
         statusCard.addView(statusDetail)
         container.addView(statusCard)
 
-        container.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(20)) })
+        container.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(24)) })
 
-        // 3. Inputs (Filled MD3 Text Fields)
-        val touchLabel = TextView(this).apply {
-            text = "Touch Relay URL"
-            textSize = 12f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(MD3_ON_SURFACE_VARIANT)
-            setPadding(0, 0, 0, dp(6))
-        }
-        container.addView(touchLabel)
-
-        touchInput = EditText(this).apply {
-            setTextColor(MD3_ON_SURFACE)
-            textSize = 13f
-            typeface = Typeface.MONOSPACE
-            background = makeBox(MD3_SURFACE_HIGH, MD3_OUTLINE, dp(1), dp(14).toFloat())
-            setPadding(dp(16), dp(14), dp(16), dp(14))
-            isSingleLine = true
-            setText(savedTouch)
-        }
-        container.addView(touchInput)
-
-        container.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(14)) })
-
-        val videoLabel = TextView(this).apply {
-            text = "Video Chunk Relay URL"
-            textSize = 12f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(MD3_ON_SURFACE_VARIANT)
-            setPadding(0, 0, 0, dp(6))
-        }
-        container.addView(videoLabel)
-
-        videoInput = EditText(this).apply {
-            setTextColor(MD3_ON_SURFACE)
-            textSize = 13f
-            typeface = Typeface.MONOSPACE
-            background = makeBox(MD3_SURFACE_HIGH, MD3_OUTLINE, dp(1), dp(14).toFloat())
-            setPadding(dp(16), dp(14), dp(16), dp(14))
-            isSingleLine = true
-            setText(savedVideo)
-        }
-        container.addView(videoInput)
-
-        // 自动记忆地址联想 Chips
-        historyChipContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(10), 0, dp(14))
-        }
-        container.addView(historyChipContainer)
-        renderHistoryChips()
-
-        // 4. Buttons (MD3 High-Emphasis & Tonal Actions)
-        connectBtn = Button(this).apply {
-            text = "Test & Save Connection"
-            textSize = 13f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(MD3_ON_PRIMARY_CONTAINER)
-            background = makeBox(MD3_PRIMARY_CONTAINER, Color.TRANSPARENT, 0, dp(24).toFloat())
-            setPadding(0, dp(14), 0, dp(14))
-            setOnClickListener {
-                runConnectionTest(touchInput.text.toString().trim(), videoInput.text.toString().trim())
-            }
-        }
-        container.addView(connectBtn)
-
-        container.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(12)) })
-
-        // START Button (MD3 Filled Button)
+        // 3. Primary Action Buttons (Immediate 1-Click Launch)
         startBtn = Button(this).apply {
-            text = "Start Active Telemetry"
+            text = "Start Telemetry"
             textSize = 14f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(MD3_ON_PRIMARY)
@@ -244,9 +179,8 @@ class MainActivity : Activity() {
         }
         container.addView(startBtn)
 
-        container.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(10)) })
+        container.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(12)) })
 
-        // STOP Button (MD3 Error Container Button)
         stopBtn = Button(this).apply {
             text = "Stop Telemetry Stream"
             textSize = 13f
@@ -258,7 +192,102 @@ class MainActivity : Activity() {
         }
         container.addView(stopBtn)
 
-        // 自动保存输入变动
+        container.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(24)) })
+
+        // 4. Advanced / Optional Custom Relay Settings (Collapsed by default)
+        toggleAdvancedBtn = TextView(this).apply {
+            text = "▸ Custom Server Relay (Optional)"
+            textSize = 12f
+            setTextColor(MD3_PRIMARY)
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, dp(8), 0, dp(8))
+            setOnClickListener {
+                if (advancedContainer.visibility == View.VISIBLE) {
+                    advancedContainer.visibility = View.GONE
+                    text = "▸ Custom Server Relay (Optional)"
+                } else {
+                    advancedContainer.visibility = View.VISIBLE
+                    text = "▾ Custom Server Relay (Optional)"
+                }
+            }
+        }
+        container.addView(toggleAdvancedBtn)
+
+        advancedContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            setPadding(0, dp(10), 0, 0)
+        }
+
+        val touchLabel = TextView(this).apply {
+            text = "Touch Relay URL (Leave empty for local mode)"
+            textSize = 11f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(MD3_ON_SURFACE_VARIANT)
+            setPadding(0, 0, 0, dp(4))
+        }
+        advancedContainer.addView(touchLabel)
+
+        touchInput = EditText(this).apply {
+            setTextColor(MD3_ON_SURFACE)
+            textSize = 12f
+            typeface = Typeface.MONOSPACE
+            background = makeBox(MD3_SURFACE_HIGH, MD3_OUTLINE, dp(1), dp(12).toFloat())
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            isSingleLine = true
+            hint = "https://your-worker-a.workers.dev"
+            setHintTextColor(Color.parseColor("#5A626A"))
+            setText(savedTouch)
+        }
+        advancedContainer.addView(touchInput)
+
+        advancedContainer.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(10)) })
+
+        val videoLabel = TextView(this).apply {
+            text = "Video Chunk Relay URL (Leave empty for local mode)"
+            textSize = 11f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(MD3_ON_SURFACE_VARIANT)
+            setPadding(0, 0, 0, dp(4))
+        }
+        advancedContainer.addView(videoLabel)
+
+        videoInput = EditText(this).apply {
+            setTextColor(MD3_ON_SURFACE)
+            textSize = 12f
+            typeface = Typeface.MONOSPACE
+            background = makeBox(MD3_SURFACE_HIGH, MD3_OUTLINE, dp(1), dp(12).toFloat())
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            isSingleLine = true
+            hint = "https://your-worker-b.workers.dev"
+            setHintTextColor(Color.parseColor("#5A626A"))
+            setText(savedVideo)
+        }
+        advancedContainer.addView(videoInput)
+
+        historyChipContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(8), 0, dp(10))
+        }
+        advancedContainer.addView(historyChipContainer)
+        renderHistoryChips()
+
+        connectBtn = Button(this).apply {
+            text = "Test Custom Connection"
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(MD3_ON_PRIMARY_CONTAINER)
+            background = makeBox(MD3_PRIMARY_CONTAINER, Color.TRANSPARENT, 0, dp(20).toFloat())
+            setPadding(0, dp(12), 0, dp(12))
+            setOnClickListener {
+                runConnectionTest(touchInput.text.toString().trim(), videoInput.text.toString().trim())
+            }
+        }
+        advancedContainer.addView(connectBtn)
+
+        container.addView(advancedContainer)
+
+        // TextWatcher for auto-saving custom input if typed
         val watcher = object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -271,7 +300,7 @@ class MainActivity : Activity() {
 
         setContentView(scroll)
 
-        if (savedTouch.isNotEmpty()) {
+        if (savedTouch.isNotBlank()) {
             runConnectionTest(savedTouch, savedVideo, isSilent = true)
         }
     }
@@ -319,7 +348,10 @@ class MainActivity : Activity() {
 
     private fun runConnectionTest(rawTouch: String, rawVideo: String, isSilent: Boolean = false) {
         if (rawTouch.isEmpty()) {
-            if (!isSilent) Toast.makeText(this, "Please enter a Server URL", Toast.LENGTH_SHORT).show()
+            if (!isSilent) Toast.makeText(this, "Empty URL: Standalone Local Mode", Toast.LENGTH_SHORT).show()
+            statusBadge.text = "● STATUS: READY"
+            statusBadge.setTextColor(MD3_SUCCESS)
+            statusDetail.text = "Standalone mode. Zero server egress."
             return
         }
 
@@ -406,6 +438,9 @@ class MainActivity : Activity() {
             PrefManager.saveUrls(this, touch, video)
             TouchCaptureAccessibilityService.activeTouchUrl = TouchCaptureAccessibilityService.normalizeTouchUrl(touch)
             ScreenChunkRecorderService.activeVideoUrl = ScreenChunkRecorderService.normalizeVideoUrl(video)
+        } else {
+            TouchCaptureAccessibilityService.activeTouchUrl = ""
+            ScreenChunkRecorderService.activeVideoUrl = ""
         }
 
         if (!isAccessibilityEnabled()) {
@@ -430,7 +465,8 @@ class MainActivity : Activity() {
             } else {
                 startService(svc)
             }
-            Toast.makeText(this, "Telemetry Active (Streaming)", Toast.LENGTH_SHORT).show()
+            val msg = if (ScreenChunkRecorderService.activeVideoUrl.isNotBlank()) "Telemetry Active (Streaming)" else "Telemetry Active (Local Standalone)"
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
             moveTaskToBack(true)
         }
     }

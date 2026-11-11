@@ -13,13 +13,11 @@
 
 import { SoundscapeInterface } from "./soundscape.js";
 
-// Cloudflare Worker A WebSocket URL (fallback to local or remote)
+// Cloudflare Worker A WebSocket URL (dynamically resolves to host when deployed on Worker, empty in standalone mode)
 const WORKER_A_WS =
-  window.location.protocol === "https:"
-    ? `wss://${window.location.host}/ws?role=consumer&room=main`
-    : (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
-    ? "wss://digital-wasteland-worker-a-touch.dsm-project.workers.dev/ws?role=consumer&room=main"
-    : "wss://digital-wasteland-worker-a-touch.dsm-project.workers.dev/ws?role=consumer&room=main";
+  window.location.protocol === "https:" || window.location.protocol === "http:"
+    ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws?role=consumer&room=main`
+    : "";
 
 const canvas = document.getElementById("wasteland-canvas");
 const ctx = canvas.getContext("2d", { alpha: false });

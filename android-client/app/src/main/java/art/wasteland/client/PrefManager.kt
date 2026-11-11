@@ -9,9 +9,9 @@ object PrefManager {
     private const val KEY_VIDEO_URL = "key_video_url"
     private const val KEY_HISTORY = "key_address_history"
 
-    // 默认内置的 Cloudflare Worker 生产端点
-    const val DEFAULT_TOUCH_URL = "https://digital-wasteland-worker-a-touch.dsm-project.workers.dev"
-    const val DEFAULT_VIDEO_URL = "https://digital-wasteland-worker-b-video.dsm-project.workers.dev"
+    // 默认独立本地模式（零外发，无预设网址）
+    const val DEFAULT_TOUCH_URL = ""
+    const val DEFAULT_VIDEO_URL = ""
 
     private fun getPrefs(ctx: Context): SharedPreferences {
         return ctx.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
