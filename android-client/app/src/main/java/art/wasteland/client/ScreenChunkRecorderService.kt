@@ -31,6 +31,9 @@ class ScreenChunkRecorderService : Service() {
         const val EXTRA_RESULT_DATA = "result_data"
 
         @Volatile
+        var isServiceRunning: Boolean = false
+
+        @Volatile
         var activeVideoUrl: String = ""
 
         private const val CHUNK_DURATION_MS = 15_000
@@ -85,6 +88,7 @@ class ScreenChunkRecorderService : Service() {
 
             mediaProjection = projection
             isRecording.set(true)
+            isServiceRunning = true
             startNextChunkSegment()
         }
         return START_STICKY
@@ -219,6 +223,7 @@ class ScreenChunkRecorderService : Service() {
 
     override fun onDestroy() {
         isRecording.set(false)
+        isServiceRunning = false
         try {
             mediaRecorder?.stop()
             mediaRecorder?.release()

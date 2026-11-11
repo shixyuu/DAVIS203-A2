@@ -285,11 +285,19 @@ function animate(now) {
     ctx.translate(item.x, renderY);
     ctx.rotate(item.angle + Math.sin(oceanTime + item.seed) * 0.03);
 
-    // 字体排版风格：优雅空灵质感
-    ctx.font = `300 ${item.fontSize}px -apple-system, BlinkMacSystemFont, "Noto Serif SC", serif`;
-    ctx.letterSpacing = "0.22em";
+    // 判断是否包含中文字符
+    const hasChinese = /[\u4e00-\u9fa5]/.test(item.text);
+
+    // 字体排版风格：英文 Michroma 科技极简，中文 HarmonyOS Sans SC 压扁拉宽以契合 Michroma 韵味
+    ctx.font = `400 ${item.fontSize}px 'Michroma', 'HarmonyOS Sans SC', 'HarmonyOS Sans', sans-serif`;
+    ctx.letterSpacing = hasChinese ? "0.28em" : "0.14em";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+
+    // 中文进行几何拉宽 (scale X 1.22, Y 0.92) 营造类似 Michroma 宽扁科技质感
+    if (hasChinese) {
+      ctx.scale(1.22, 0.92);
+    }
 
     // 柔和水下倒影 / 辉光
     ctx.fillStyle = `rgba(255, 255, 255, ${(alpha * 0.75).toFixed(3)})`;

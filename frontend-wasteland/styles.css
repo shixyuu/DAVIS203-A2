@@ -12,7 +12,7 @@ body {
   overflow: hidden;
   background: #060709;
   color: #e6edf3;
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  font-family: 'Michroma', 'HarmonyOS Sans SC', 'HarmonyOS Sans', 'PingFang SC', sans-serif;
 }
 
 #wasteland-canvas {

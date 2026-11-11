@@ -12,6 +12,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -26,15 +28,30 @@ import java.net.URL
 import java.util.concurrent.Executors
 
 /**
- * Universal Precompiled Telemetry Client (Kotlin)
- * - Allows operator to enter any Cloudflare Worker relay URL
- * - Automatic connection verification with live HTTP status indicator
- * - Persistent configuration stored via PrefManager
+ * Material You / Material Design 3 (MD3) Telemetry Client
+ * - 纯净 MD3 配色体系 (Surface, Primary, Secondary Container, Error Container)
+ * - 自动记忆输入过的服务器历史地址 (Auto Address Memory)
+ * - 启动 (START) 与 停止 (STOP) 录屏分片传输按钮
  */
 class MainActivity : Activity() {
 
     companion object {
         private const val REQ_PROJECTION = 2001
+
+        // MD3 调色板 (Material 3 Dark/Tonal Elevation Palette)
+        private val MD3_SURFACE = Color.parseColor("#101418")            // Surface Base
+        private val MD3_SURFACE_CONTAINER = Color.parseColor("#1B2026")  // Card container
+        private val MD3_SURFACE_HIGH = Color.parseColor("#252A30")       // High container / input field
+        private val MD3_PRIMARY = Color.parseColor("#A8C8E8")            // Primary accent (Light Sky)
+        private val MD3_ON_PRIMARY = Color.parseColor("#10324D")         // On primary
+        private val MD3_PRIMARY_CONTAINER = Color.parseColor("#274865")  // Primary Container
+        private val MD3_ON_PRIMARY_CONTAINER = Color.parseColor("#CDE5FF")
+        private val MD3_OUTLINE = Color.parseColor("#42474E")            // Border outline
+        private val MD3_ON_SURFACE = Color.parseColor("#E0E2E8")         // Main text
+        private val MD3_ON_SURFACE_VARIANT = Color.parseColor("#C2C7CF") // Subtitle text
+        private val MD3_SUCCESS = Color.parseColor("#80D5A3")            // Status green
+        private val MD3_ERROR_CONTAINER = Color.parseColor("#8C1D18")    // Stop / Error red
+        private val MD3_ON_ERROR_CONTAINER = Color.parseColor("#F9DEDC")
     }
 
     private lateinit var statusBadge: TextView
@@ -43,6 +60,8 @@ class MainActivity : Activity() {
     private lateinit var videoInput: EditText
     private lateinit var connectBtn: Button
     private lateinit var startBtn: Button
+    private lateinit var stopBtn: Button
+    private lateinit var historyChipContainer: LinearLayout
 
     private val netExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -56,7 +75,7 @@ class MainActivity : Activity() {
         ).toInt()
     }
 
-    private fun makeBox(bgColor: Int, strokeColor: Int = Color.TRANSPARENT, strokeWidth: Int = 0, radius: Float = 16f): GradientDrawable {
+    private fun makeBox(bgColor: Int, strokeColor: Int = Color.TRANSPARENT, strokeWidth: Int = 0, radius: Float = 24f): GradientDrawable {
         return GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             setColor(bgColor)
@@ -73,22 +92,22 @@ class MainActivity : Activity() {
         val savedVideo = PrefManager.getVideoUrl(this)
 
         val scroll = ScrollView(this).apply {
-            setBackgroundColor(Color.parseColor("#07090E"))
+            setBackgroundColor(MD3_SURFACE)
             isFillViewport = true
         }
 
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(36), dp(24), dp(36))
+            setPadding(dp(20), dp(32), dp(20), dp(32))
         }
         scroll.addView(container)
 
-        // 1. Header
+        // 1. MD3 Header
         val title = TextView(this).apply {
-            text = "DIGITAL WASTELAND"
-            textSize = 22f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.parseColor("#F1F5F9"))
+            text = "Digital Wasteland"
+            textSize = 26f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setTextColor(MD3_ON_SURFACE)
             gravity = Gravity.CENTER_HORIZONTAL
         }
         container.addView(title)
@@ -96,116 +115,114 @@ class MainActivity : Activity() {
         val subtitle = TextView(this).apply {
             text = "TELEMETRY SURVEILLANCE NODE"
             textSize = 11f
-            letterSpacing = 0.15f
-            setTextColor(Color.parseColor("#00E5FF"))
+            letterSpacing = 0.16f
+            setTextColor(MD3_PRIMARY)
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, dp(4), 0, dp(12))
+            setPadding(0, dp(4), 0, dp(14))
         }
         container.addView(subtitle)
 
-        val deviceBadge = TextView(this).apply {
+        // Device ID MD3 Chip
+        val deviceChip = TextView(this).apply {
             text = "DEVICE: $deviceId"
             textSize = 12f
             typeface = Typeface.MONOSPACE
-            setTextColor(Color.parseColor("#94A3B8"))
-            background = makeBox(Color.parseColor("#0F172A"), Color.parseColor("#1E293B"), dp(1), dp(8).toFloat())
+            setTextColor(MD3_ON_PRIMARY_CONTAINER)
+            background = makeBox(MD3_PRIMARY_CONTAINER, Color.TRANSPARENT, 0, dp(16).toFloat())
             gravity = Gravity.CENTER
-            setPadding(dp(12), dp(6), dp(12), dp(6))
+            setPadding(dp(16), dp(8), dp(16), dp(8))
         }
         val deviceLayout = LinearLayout(this).apply {
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 0, 0, dp(24))
-            addView(deviceBadge)
+            setPadding(0, 0, 0, dp(20))
+            addView(deviceChip)
         }
         container.addView(deviceLayout)
 
-        // 2. Status Card
+        // 2. MD3 Status Card
         val statusCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = makeBox(Color.parseColor("#0D131F"), Color.parseColor("#1E293B"), dp(1), dp(12).toFloat())
-            setPadding(dp(16), dp(16), dp(16), dp(16))
+            background = makeBox(MD3_SURFACE_CONTAINER, MD3_OUTLINE, dp(1), dp(20).toFloat())
+            setPadding(dp(20), dp(20), dp(20), dp(20))
         }
 
         statusBadge = TextView(this).apply {
-            text = "● STATUS: NOT CONNECTED"
-            textSize = 14f
+            text = "● STATUS: READY"
+            textSize = 13f
             typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.parseColor("#EF4444"))
+            setTextColor(MD3_SUCCESS)
         }
         statusCard.addView(statusBadge)
 
         statusDetail = TextView(this).apply {
-            text = "Enter relay server URL below to link this node to the exhibition installation."
+            text = "Configured for Cloudflare Worker edge relay."
             textSize = 12f
-            setTextColor(Color.parseColor("#64748B"))
+            setTextColor(MD3_ON_SURFACE_VARIANT)
             setPadding(0, dp(6), 0, 0)
         }
         statusCard.addView(statusDetail)
         container.addView(statusCard)
 
-        // Spacer
-        container.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(24)) })
+        container.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(20)) })
 
-        // 3. Inputs
+        // 3. Inputs (Filled MD3 Text Fields)
         val touchLabel = TextView(this).apply {
-            text = "RELAY SERVER URL (TOUCH)"
-            textSize = 11f
+            text = "Touch Relay URL"
+            textSize = 12f
             typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = 0.08f
-            setTextColor(Color.parseColor("#94A3B8"))
+            setTextColor(MD3_ON_SURFACE_VARIANT)
             setPadding(0, 0, 0, dp(6))
         }
         container.addView(touchLabel)
 
         touchInput = EditText(this).apply {
-            hint = "https://your-touch-worker.workers.dev"
-            setHintTextColor(Color.parseColor("#475569"))
-            setTextColor(Color.WHITE)
+            setTextColor(MD3_ON_SURFACE)
             textSize = 13f
             typeface = Typeface.MONOSPACE
-            background = makeBox(Color.parseColor("#111827"), Color.parseColor("#374151"), dp(1), dp(8).toFloat())
-            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = makeBox(MD3_SURFACE_HIGH, MD3_OUTLINE, dp(1), dp(14).toFloat())
+            setPadding(dp(16), dp(14), dp(16), dp(14))
             isSingleLine = true
             setText(savedTouch)
         }
         container.addView(touchInput)
 
-        // Spacer
-        container.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(16)) })
+        container.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(14)) })
 
         val videoLabel = TextView(this).apply {
-            text = "VIDEO RELAY URL (OPTIONAL CHUNKS)"
-            textSize = 11f
+            text = "Video Chunk Relay URL"
+            textSize = 12f
             typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = 0.08f
-            setTextColor(Color.parseColor("#94A3B8"))
+            setTextColor(MD3_ON_SURFACE_VARIANT)
             setPadding(0, 0, 0, dp(6))
         }
         container.addView(videoLabel)
 
         videoInput = EditText(this).apply {
-            hint = "https://your-video-worker.workers.dev"
-            setHintTextColor(Color.parseColor("#475569"))
-            setTextColor(Color.WHITE)
+            setTextColor(MD3_ON_SURFACE)
             textSize = 13f
             typeface = Typeface.MONOSPACE
-            background = makeBox(Color.parseColor("#111827"), Color.parseColor("#374151"), dp(1), dp(8).toFloat())
-            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = makeBox(MD3_SURFACE_HIGH, MD3_OUTLINE, dp(1), dp(14).toFloat())
+            setPadding(dp(16), dp(14), dp(16), dp(14))
             isSingleLine = true
             setText(savedVideo)
         }
         container.addView(videoInput)
 
-        // Spacer
-        container.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(24)) })
+        // 自动记忆地址联想 Chips
+        historyChipContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(10), 0, dp(14))
+        }
+        container.addView(historyChipContainer)
+        renderHistoryChips()
 
-        // 4. Connect Button
+        // 4. Buttons (MD3 High-Emphasis & Tonal Actions)
         connectBtn = Button(this).apply {
-            text = "TEST & CONNECT SERVER"
+            text = "Test & Save Connection"
             textSize = 13f
             typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.WHITE)
-            background = makeBox(Color.parseColor("#2563EB"), Color.TRANSPARENT, 0, dp(8).toFloat())
+            setTextColor(MD3_ON_PRIMARY_CONTAINER)
+            background = makeBox(MD3_PRIMARY_CONTAINER, Color.TRANSPARENT, 0, dp(24).toFloat())
             setPadding(0, dp(14), 0, dp(14))
             setOnClickListener {
                 runConnectionTest(touchInput.text.toString().trim(), videoInput.text.toString().trim())
@@ -213,35 +230,71 @@ class MainActivity : Activity() {
         }
         container.addView(connectBtn)
 
-        // Spacer
-        container.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(16)) })
+        container.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(12)) })
 
-        // 5. Start Telemetry Button
+        // START Button (MD3 Filled Button)
         startBtn = Button(this).apply {
-            text = "START TELEMETRY"
+            text = "Start Active Telemetry"
             textSize = 14f
             typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.WHITE)
-            background = makeBox(Color.parseColor("#059669"), Color.TRANSPARENT, 0, dp(8).toFloat())
+            setTextColor(MD3_ON_PRIMARY)
+            background = makeBox(MD3_PRIMARY, Color.TRANSPARENT, 0, dp(24).toFloat())
             setPadding(0, dp(16), 0, dp(16))
             setOnClickListener { handleOneClickStart() }
         }
         container.addView(startBtn)
 
-        val tipText = TextView(this).apply {
-            text = "Note: If server URL is empty or unverified, telemetry will log gestures locally without network exfiltration."
-            textSize = 11f
-            setTextColor(Color.parseColor("#475569"))
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, dp(18), 0, 0)
+        container.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(10)) })
+
+        // STOP Button (MD3 Error Container Button)
+        stopBtn = Button(this).apply {
+            text = "Stop Telemetry Stream"
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(MD3_ON_ERROR_CONTAINER)
+            background = makeBox(MD3_ERROR_CONTAINER, Color.TRANSPARENT, 0, dp(24).toFloat())
+            setPadding(0, dp(14), 0, dp(14))
+            setOnClickListener { handleStopTelemetry() }
         }
-        container.addView(tipText)
+        container.addView(stopBtn)
+
+        // 自动保存输入变动
+        val watcher = object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                PrefManager.saveUrls(this@MainActivity, touchInput.text.toString(), videoInput.text.toString())
+            }
+        }
+        touchInput.addTextChangedListener(watcher)
+        videoInput.addTextChangedListener(watcher)
 
         setContentView(scroll)
 
-        // If previously saved URL exists, trigger auto-check
         if (savedTouch.isNotEmpty()) {
             runConnectionTest(savedTouch, savedVideo, isSilent = true)
+        }
+    }
+
+    private fun renderHistoryChips() {
+        historyChipContainer.removeAllViews()
+        val history = PrefManager.getHistoryList(this)
+        if (history.isEmpty()) return
+
+        for (addr in history.take(3)) {
+            val chip = TextView(this).apply {
+                text = if (addr.length > 28) addr.take(25) + "..." else addr
+                textSize = 11f
+                setTextColor(MD3_PRIMARY)
+                background = makeBox(MD3_SURFACE_HIGH, MD3_OUTLINE, dp(1), dp(12).toFloat())
+                setPadding(dp(12), dp(6), dp(12), dp(6))
+                setOnClickListener {
+                    touchInput.setText(addr)
+                    PrefManager.saveUrls(this@MainActivity, addr, videoInput.text.toString())
+                }
+            }
+            historyChipContainer.addView(chip)
+            historyChipContainer.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(dp(8), 1) })
         }
     }
 
@@ -251,23 +304,22 @@ class MainActivity : Activity() {
     }
 
     private fun updatePermissionStatus() {
+        val isRecording = ScreenChunkRecorderService.isServiceRunning
         if (!isAccessibilityEnabled()) {
-            startBtn.text = "GRANT ACCESSIBILITY & START"
-            startBtn.background = makeBox(Color.parseColor("#D97706"), Color.TRANSPARENT, 0, dp(8).toFloat())
+            startBtn.text = "Grant Accessibility & Start"
+            startBtn.background = makeBox(Color.parseColor("#F59E0B"), Color.TRANSPARENT, 0, dp(24).toFloat())
         } else {
-            startBtn.text = if (isConnected) "START ACTIVE TELEMETRY" else "START LOCAL TELEMETRY"
+            startBtn.text = if (isRecording) "Telemetry Running" else "Start Telemetry"
             startBtn.background = makeBox(
-                if (isConnected) Color.parseColor("#059669") else Color.parseColor("#374151"),
-                Color.TRANSPARENT, 0, dp(8).toFloat()
+                if (isRecording) Color.parseColor("#059669") else MD3_PRIMARY,
+                Color.TRANSPARENT, 0, dp(24).toFloat()
             )
         }
     }
 
     private fun runConnectionTest(rawTouch: String, rawVideo: String, isSilent: Boolean = false) {
         if (rawTouch.isEmpty()) {
-            if (!isSilent) {
-                Toast.makeText(this, "Please enter a Server URL", Toast.LENGTH_SHORT).show()
-            }
+            if (!isSilent) Toast.makeText(this, "Please enter a Server URL", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -279,7 +331,7 @@ class MainActivity : Activity() {
 
         statusBadge.text = "● CONNECTING..."
         statusBadge.setTextColor(Color.parseColor("#F59E0B"))
-        statusDetail.text = "Pinging endpoint $cleanBaseUrl/status ..."
+        statusDetail.text = "Testing endpoint $cleanBaseUrl/status ..."
         connectBtn.isEnabled = false
 
         netExecutor.execute {
@@ -288,13 +340,11 @@ class MainActivity : Activity() {
             var errorMsg = ""
 
             try {
-                // Cloudflare Worker status probe
                 val targetUrl = URL("$cleanBaseUrl/status")
                 val conn = targetUrl.openConnection() as HttpURLConnection
                 conn.connectTimeout = 5000
                 conn.readTimeout = 5000
                 conn.requestMethod = "GET"
-                conn.instanceFollowRedirects = true
                 responseCode = conn.responseCode
                 if (responseCode in 200..399) {
                     success = true
@@ -311,25 +361,32 @@ class MainActivity : Activity() {
                 if (success) {
                     isConnected = true
                     statusBadge.text = "● CONNECTED (HTTP $responseCode)"
-                    statusBadge.setTextColor(Color.parseColor("#10B981"))
-                    statusDetail.text = "Successfully linked to $cleanBaseUrl\nReady to stream real-time gestures."
+                    statusBadge.setTextColor(MD3_SUCCESS)
+                    statusDetail.text = "Linked to $cleanBaseUrl"
 
-                    // Save configuration
                     PrefManager.saveUrls(this@MainActivity, normalizedTouch, rawVideo)
                     TouchCaptureAccessibilityService.activeTouchUrl = TouchCaptureAccessibilityService.normalizeTouchUrl(normalizedTouch)
                     ScreenChunkRecorderService.activeVideoUrl = ScreenChunkRecorderService.normalizeVideoUrl(rawVideo)
 
+                    renderHistoryChips()
                     updatePermissionStatus()
-                    Toast.makeText(this@MainActivity, "Connected successfully!", Toast.LENGTH_SHORT).show()
+                    if (!isSilent) Toast.makeText(this@MainActivity, "Connected and Saved!", Toast.LENGTH_SHORT).show()
                 } else {
                     isConnected = false
                     statusBadge.text = "● CONNECTION FAILED"
                     statusBadge.setTextColor(Color.parseColor("#EF4444"))
-                    statusDetail.text = "Failed to reach server: $errorMsg\nPlease verify the domain and device network."
+                    statusDetail.text = "Server error: $errorMsg"
                     updatePermissionStatus()
                 }
             }
         }
+    }
+
+    private fun handleStopTelemetry() {
+        stopService(Intent(this, ScreenChunkRecorderService::class.java))
+        ScreenChunkRecorderService.isServiceRunning = false
+        updatePermissionStatus()
+        Toast.makeText(this, "Telemetry stream stopped", Toast.LENGTH_SHORT).show()
     }
 
     private fun isAccessibilityEnabled(): Boolean {
