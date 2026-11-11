@@ -361,16 +361,10 @@ async function init() {
     const cached = await loadCachedChunks();
     cached.sort((a, b) => b.recordedAt - a.recordedAt);
 
-    if (cached.length === 0) {
-      getOrCreateDeviceLane("node-01");
-    } else {
-      for (const item of cached) {
-        addClip(item, item.blob);
-      }
+    for (const item of cached) {
+      addClip(item, item.blob);
     }
-  } catch (_) {
-    // 即使异常也保持容器干净
-  }
+  } catch (_) {}
 
   deviceLanes.forEach((l) => layoutLane(l, 0));
   connectWorkerB();
@@ -392,15 +386,11 @@ if (clearBtn) {
         if (c.url) URL.revokeObjectURL(c.url);
         if (c.el) c.el.remove();
       });
-      laneData.clips = [];
-      laneData.pos = 0;
-      layoutLane(laneData, 0);
+      laneData.laneEl.remove();
     });
 
     deviceLanes.clear();
     lanesContainer.innerHTML = "";
-    getOrCreateDeviceLane("node-01");
-    deviceLanes.forEach((l) => layoutLane(l, 0));
   });
 }
 
