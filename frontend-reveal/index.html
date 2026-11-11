@@ -4,46 +4,36 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
-  <title>Digital Wasteland — Surveillance Archive (Captive Deck)</title>
+  <title>Digital Wasteland — Multi-Device Surveillance Matrix</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Michroma&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Michroma&family=Noto+Serif+SC:wght@300;400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body tabindex="-1">
-  <!-- CRT Scanlines and Edge Vignette -->
-  <div class="veil" aria-hidden="true"></div>
+  <!-- Subtle Ambient Mesh Background -->
+  <div class="ambient-mesh" aria-hidden="true"></div>
 
-  <!-- Header Surveillance HUD -->
+  <!-- Header HUD -->
   <header class="top">
     <div class="brand">
       <span class="dot is-offline" id="live-dot"></span>
-      <span class="brand-mark">DIGITAL WASTELAND</span>
+      <span class="brand-mark">DIGITAL WASTELAND · ARCHIVE</span>
     </div>
     <div class="hud" id="hud" aria-live="polite">
       <span>STANDBY</span>
     </div>
   </header>
 
-  <!-- Jump to Newest Clip Pill -->
-  <button type="button" class="fresh" id="fresh" hidden aria-label="Jump to newest">
-    <span class="fresh-dot"></span><span id="fresh-n">+1</span>
-  </button>
-
-  <!-- 3D Stacked Surveillance Deck -->
-  <main class="deck" id="deck" aria-label="Surveillance stack" tabindex="0">
-    <div class="ghost is-portrait" id="ghost" aria-hidden="true">
-      <div class="ghost-frame"></div>
-      <div class="ghost-tag"></div>
-      <span class="ghost-label">AWAITING TELEMETRY FEED</span>
+  <!-- Multi-Device Side-by-Side Centered Stage -->
+  <main class="stage" id="stage" aria-label="Surveillance stage">
+    <div class="device-lanes" id="lanes">
+      <!-- Device lanes will be dynamically injected side-by-side -->
     </div>
   </main>
 
-  <!-- History Navigation Rail -->
-  <nav class="rail" id="rail" aria-label="History"></nav>
-
-  <!-- Bottom Interactive Guide -->
-  <div class="hint" id="hint" aria-hidden="true">SCROLL &nbsp;·&nbsp; DRAG &nbsp;·&nbsp; ↑ ↓ TO INSPECT</div>
+  <!-- Bottom Interaction Hint -->
+  <div class="hint" id="hint">SCROLL / DRAG DECK TO INSPECT HISTORY · AUTO-FOLLOWS LATEST FEED</div>
 
   <script type="module" src="./reveal.js"></script>
 </body>
