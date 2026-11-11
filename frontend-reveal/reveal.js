@@ -141,7 +141,14 @@ function buildCard(item) {
   video.preload = "auto";
   video.setAttribute("muted", "");
   video.setAttribute("playsinline", "");
+  video.setAttribute("loop", "");
   video.src = item.url;
+
+  // 保证无限无缝重播循环 (直到新切片到达替换)
+  video.addEventListener("ended", () => {
+    video.currentTime = 0;
+    video.play().catch(() => {});
+  });
 
   // 自动检测横竖屏宽高比
   video.addEventListener("loadedmetadata", () => {
@@ -151,6 +158,9 @@ function buildCard(item) {
 
     el.classList.remove("is-portrait", "is-landscape");
     el.classList.add(isLandscape ? "is-landscape" : "is-portrait");
+    
+    // 立即自动开始循环播放
+    video.play().catch(() => {});
   });
 
   frame.appendChild(video);
