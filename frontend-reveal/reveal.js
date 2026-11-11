@@ -1,15 +1,12 @@
 /**
- * Digital Wasteland — Multi-Device Surveillance Matrix
+ * Digital Wasteland — Multi-Device Surveillance Matrix (Minimalist LIVE-only)
  *
  * Core Concept:
- * 1. Perfectly Centered Multi-Device Side-by-Side Presentation:
- *    Multiple phones appear side-by-side on the exhibition screen (auto-centered).
- * 2. Auto-Follow Newest Live State:
- *    When a new 15s chunk arrives, the card deck smoothly auto-advances to the front,
- *    keeping the latest footage live while preserving manual inspection history.
- * 3. Unified Aesthetic with WA (Ocean / Ambient Glass / Michroma Typography):
- *    Frosted glass cards, teal/cyan telemetry glow, deep ambient wave background.
- * 4. Multi-Aspect Ratio (16:9 Landscape & 9:16 Portrait) auto-detection.
+ * 1. Ultra-Minimalist: All text removed except the glowing "LIVE" indicator badge.
+ * 2. True Horizontal & Vertical Centering.
+ * 3. Side-by-Side Multi-Device Lanes with 3D Depth Card Deck.
+ * 4. Auto-Follow Newest Live Slices.
+ * 5. Full Aspect-Ratio Support (16:9 Landscape & 9:16 Portrait).
  */
 
 // Cloudflare Worker B WebSocket URL
@@ -25,27 +22,15 @@ const STORE_NAME = "video_chunks";
 const MAX_CLIPS_PER_DEVICE = 20;
 
 const lanesContainer = document.getElementById("lanes");
-const hud = document.getElementById("hud");
-const liveDot = document.getElementById("live-dot");
 
 let dbInstance = null;
-let connected = false;
-
-// 每个设备独立的卡片堆栈管理器
-// deviceLanes: Map<deviceId, { laneEl, deckEl, ghostEl, clips: [], pos: 0, isInteracting: false, lastInteractionTime: 0 }>
 const deviceLanes = new Map();
 
-const pad2 = (n) => String(n).padStart(2, "0");
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const smooth = (a, b, x) => {
   const t = clamp((x - a) / (b - a), 0, 1);
   return t * t * (3 - 2 * t);
 };
-
-function fmtTime(ts) {
-  const d = new Date(ts || Date.now());
-  return pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds());
-}
 
 /* ---------------- IndexedDB ---------------- */
 function openDB() {
@@ -103,25 +88,13 @@ function getOrCreateDeviceLane(deviceId = "node-default") {
   const laneEl = document.createElement("div");
   laneEl.className = "lane";
 
-  const header = document.createElement("div");
-  header.className = "lane-header";
-  header.innerHTML = `
-    <span class="lane-tag">SOURCE: ${deviceId}</span>
-    <span class="lane-status" id="status-${deviceId}">READY</span>
-  `;
-  laneEl.appendChild(header);
-
   const deckEl = document.createElement("div");
   deckEl.className = "deck";
 
   // 待机空状态 Ghost 卡片
   const ghostEl = document.createElement("div");
   ghostEl.className = "ghost is-portrait";
-  ghostEl.innerHTML = `
-    <div class="ghost-frame"></div>
-    <div class="ghost-tag"></div>
-    <span class="ghost-label">AWAITING FEED FROM ${deviceId.toUpperCase()}</span>
-  `;
+  ghostEl.innerHTML = `<div class="ghost-frame"></div>`;
   deckEl.appendChild(ghostEl);
 
   laneEl.appendChild(deckEl);
@@ -140,11 +113,10 @@ function getOrCreateDeviceLane(deviceId = "node-default") {
 
   setupLaneInteraction(laneData);
   deviceLanes.set(deviceId, laneData);
-  updateGlobalHUD();
   return laneData;
 }
 
-/* ---------------- 监视卡片构建与横竖屏自动识别 ---------------- */
+/* ---------------- 监视卡片构建（纯净无文字，仅保留 LIVE 呼吸标） ---------------- */
 function buildCard(item) {
   const el = document.createElement("article");
   el.className = "card is-portrait";
@@ -169,45 +141,17 @@ function buildCard(item) {
 
     el.classList.remove("is-portrait", "is-landscape");
     el.classList.add(isLandscape ? "is-landscape" : "is-portrait");
-
-    const aspectBadge = el.querySelector(".t-aspect");
-    if (aspectBadge) {
-      aspectBadge.textContent = isLandscape ? `16:9 ${vw}x${vh}` : `9:16 ${vw}x${vh}`;
-    }
   });
 
   frame.appendChild(video);
 
+  // 唯一的文字元素：LIVE 录像呼吸标头
   const cam = document.createElement("div");
   cam.className = "cam";
   cam.innerHTML = `<span class="cam-dot"></span><span class="cam-text">LIVE</span>`;
   frame.appendChild(cam);
 
-  // 右侧元数据栏
-  const tag = document.createElement("div");
-  tag.className = "tag";
-
-  const add = (cls, text) => {
-    const s = document.createElement("span");
-    s.className = cls;
-    s.textContent = text;
-    tag.appendChild(s);
-    return s;
-  };
-
-  add("t-idx", fmtTime(item.recordedAt));
-  const rule = document.createElement("div");
-  rule.className = "t-rule";
-  tag.appendChild(rule);
-
-  add("t-name", item.deviceId || "android-node");
-  add("t-aspect", "AUTO DETECT");
-  add("t-ip", `CHUNK #${item.chunkIndex ?? 0}`);
-
-  const net = add("t-net", "EXFILTRATION ARCHIVE\nENCRYPTED LOCAL CACHE");
-
   el.appendChild(frame);
-  el.appendChild(tag);
 
   item.el = el;
   item.video = video;
@@ -237,7 +181,7 @@ function place(item, i, r) {
     op = d > 4 ? Math.max(0, 1 - (d - 4)) : 1;
   }
 
-  // 严格基于卡片自身宽高 -50% 居中偏移
+  // 严格居中锚点
   el.style.transform = `translate3d(calc(-50% + ${x}px), calc(-50% + ${yPct}% + ${yPx}px), 0) scale(${s}) rotateZ(${rot}deg)`;
   el.style.opacity = op;
   el.style.setProperty("--dim", dim);
@@ -263,11 +207,6 @@ function layoutLane(laneData, offset = 0) {
     const r = i - target;
     place(item, i, r);
   });
-
-  const statusEl = laneData.laneEl.querySelector(`#status-${laneData.deviceId}`);
-  if (statusEl && laneData.clips.length > 0) {
-    statusEl.textContent = `${laneData.pos + 1}/${laneData.clips.length}`;
-  }
 }
 
 /* ---------------- 交互手势与滚轮 ---------------- */
@@ -305,7 +244,7 @@ function setupLaneInteraction(laneData) {
     }
     layoutLane(laneData, 0);
 
-    // 15 秒无人操作后，自动恢复自动跟随最新状态 (Auto-Follow Newest)
+    // 15 秒无人操作后，恢复自动跟随最新状态
     setTimeout(() => {
       if (Date.now() - laneData.lastInteractionTime >= 14000) {
         laneData.isInteracting = false;
@@ -335,7 +274,7 @@ function setupLaneInteraction(laneData) {
   }, { passive: true });
 }
 
-/* ---------------- 压入新切片 (自动刷新到最新状态) ---------------- */
+/* ---------------- 压入新切片 (自动刷新推进到最新状态) ---------------- */
 function addClip(meta, blob) {
   const devId = meta.deviceId || "node-default";
   const laneData = getOrCreateDeviceLane(devId);
@@ -343,7 +282,6 @@ function addClip(meta, blob) {
   const url = URL.createObjectURL(blob);
   const item = { ...meta, blob, url };
 
-  // 插入到该设备最前列 (最新在前)
   laneData.clips.unshift(item);
   const cardEl = buildCard(item);
   laneData.deckEl.appendChild(cardEl);
@@ -354,29 +292,12 @@ function addClip(meta, blob) {
     if (dropped.el) dropped.el.remove();
   }
 
-  // 核心功能：如果没有处于手动查看历史，自动刷新推进到最新切片 (Auto-Follow Newest)
+  // 自动刷新推进到最新切片
   if (!laneData.isInteracting) {
     laneData.pos = 0;
   }
 
   layoutLane(laneData, 0);
-  updateGlobalHUD();
-}
-
-function updateGlobalHUD() {
-  const devCount = deviceLanes.size;
-  let totalClips = 0;
-  deviceLanes.forEach((d) => (totalClips += d.clips.length));
-
-  if (!devCount || !totalClips) {
-    hud.innerHTML = `<span>STANDBY · ZERO STREAMS</span>`;
-    return;
-  }
-
-  hud.innerHTML = `
-    <span>ACTIVE NODES: <b>${devCount}</b></span>
-    <span>TOTAL ARCHIVE: <b>${totalClips}</b></span>
-  `;
 }
 
 /* ---------------- WebSocket 实时中继接入 ---------------- */
@@ -387,11 +308,6 @@ function connectWorkerB() {
   try {
     const ws = new WebSocket(WORKER_B_WS);
     ws.binaryType = "arraybuffer";
-
-    ws.onopen = () => {
-      connected = true;
-      liveDot.classList.remove("is-offline");
-    };
 
     ws.onmessage = async (event) => {
       if (typeof event.data === "string") {
@@ -414,8 +330,6 @@ function connectWorkerB() {
     };
 
     ws.onclose = () => {
-      connected = false;
-      liveDot.classList.add("is-offline");
       setTimeout(connectWorkerB, 3000);
     };
   } catch (_) {}
@@ -425,10 +339,8 @@ function connectWorkerB() {
 async function init() {
   try {
     const cached = await loadCachedChunks();
-    // 按时间顺序（最新在前）
     cached.sort((a, b) => b.recordedAt - a.recordedAt);
 
-    // 预先建立默认通道（如果完全没有数据则显示一个默认空通道）
     if (cached.length === 0) {
       getOrCreateDeviceLane("node-01");
     } else {
