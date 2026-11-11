@@ -287,6 +287,16 @@ function setupLaneInteraction(laneData) {
 /* ---------------- 压入新切片 (自动刷新推进到最新状态) ---------------- */
 function addClip(meta, blob) {
   const devId = meta.deviceId || "node-default";
+
+  // 如果之前存在占位的空测试设备 (node-01)，当真实设备连入时移除该空通道
+  if (devId !== "node-01" && deviceLanes.has("node-01")) {
+    const dummy = deviceLanes.get("node-01");
+    if (dummy.clips.length === 0) {
+      dummy.laneEl.remove();
+      deviceLanes.delete("node-01");
+    }
+  }
+
   const laneData = getOrCreateDeviceLane(devId);
 
   const url = URL.createObjectURL(blob);
@@ -359,7 +369,7 @@ async function init() {
       }
     }
   } catch (_) {
-    getOrCreateDeviceLane("node-01");
+    // 即使异常也保持容器干净
   }
 
   deviceLanes.forEach((l) => layoutLane(l, 0));

@@ -82,8 +82,8 @@ body {
 /* 3D 卡片卡组视口：绝对居中锚点 */
 .deck {
   position: relative;
-  width: var(--deck-w, 340px);
-  height: var(--deck-h, 560px);
+  width: var(--deck-w, min(72vh * 9 / 16, 370px));
+  height: var(--deck-h, min(72vh, 660px));
   display: flex;
   align-items: center;
   justify-content: center;
