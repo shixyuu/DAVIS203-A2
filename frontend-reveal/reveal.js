@@ -237,6 +237,7 @@ function place(item, i, r) {
     op = d > 4 ? Math.max(0, 1 - (d - 4)) : 1;
   }
 
+  // 严格基于卡片自身宽高 -50% 居中偏移
   el.style.transform = `translate3d(calc(-50% + ${x}px), calc(-50% + ${yPct}% + ${yPx}px), 0) scale(${s}) rotateZ(${rot}deg)`;
   el.style.opacity = op;
   el.style.setProperty("--dim", dim);

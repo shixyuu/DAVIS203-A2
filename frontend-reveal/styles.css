@@ -1,12 +1,12 @@
 :root {
   --bg: #090e13;
   --bg-top: #0d151d;
-  --panel: rgba(14, 22, 30, 0.85);
-  --panel-border: rgba(56, 189, 248, 0.18);
-  --panel-glow: rgba(56, 189, 248, 0.12);
+  --panel: rgba(14, 22, 30, 0.88);
+  --panel-border: rgba(56, 189, 248, 0.22);
+  --panel-glow: rgba(56, 189, 248, 0.15);
   --meta-bg: rgba(10, 16, 22, 0.95);
-  --line: rgba(56, 189, 248, 0.12);
-  --line-strong: rgba(56, 189, 248, 0.35);
+  --line: rgba(56, 189, 248, 0.14);
+  --line-strong: rgba(56, 189, 248, 0.38);
   --text: #e2f1f8;
   --muted: #88a9be;
   --faint: rgba(136, 169, 190, 0.45);
@@ -40,17 +40,16 @@ html, body {
 /* 浅海/深海微光背景，与 WA 保持统一意境 */
 body {
   background:
-    radial-gradient(circle 800px at 50% 45%, rgba(14, 165, 233, 0.08), transparent 75%),
+    radial-gradient(circle 800px at 50% 50%, rgba(14, 165, 233, 0.08), transparent 75%),
     linear-gradient(180deg, var(--bg-top) 0%, var(--bg) 100%);
 }
 
-/* 背景流动光痕与水纹暗影 */
 .ambient-mesh {
   pointer-events: none;
   position: fixed;
   inset: 0;
   z-index: 1;
-  opacity: 0.65;
+  opacity: 0.55;
   background-image:
     radial-gradient(rgba(56, 189, 248, 0.1) 1px, transparent 1px),
     repeating-linear-gradient(0deg, transparent 0, transparent 3px, rgba(0, 0, 0, 0.15) 4px);
@@ -116,7 +115,7 @@ body {
   font-weight: 400;
 }
 
-/* 多设备并排视口容器 (完全绝对居中) */
+/* 核心舞台：视口正中央绝对居中 */
 .stage {
   position: fixed;
   inset: 0;
@@ -124,18 +123,19 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 80px var(--pad) 60px var(--pad);
+  padding: 85px var(--pad) 65px var(--pad);
 }
 
-/* 设备通道网格：支持单台、两台并排、多台并排网格 */
+/* 设备通道网格：多台设备水平并排且整组保持水平垂直居中 */
 .device-lanes {
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: clamp(24px, 3.5vw, 60px);
-  width: 100%;
+  gap: clamp(24px, 4vw, 64px);
+  width: auto;
   height: 100%;
-  max-width: 1680px;
+  max-width: 100%;
 }
 
 /* 单个设备通道列 */
@@ -145,24 +145,23 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  flex: 1 1 0;
-  min-width: 280px;
-  max-width: 620px;
+  flex: 0 0 auto;
   height: 100%;
 }
 
 .lane-header {
   position: absolute;
-  top: -36px;
+  top: clamp(10px, 3vh, 35px);
   left: 0;
   right: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 9px;
+  font-size: 8.5px;
   letter-spacing: 0.25em;
   color: var(--ocean-teal);
-  padding: 0 8px;
+  padding: 0 4px;
+  z-index: 20;
 }
 .lane-tag {
   background: rgba(14, 165, 233, 0.12);
@@ -171,11 +170,11 @@ body {
   border-radius: 4px;
 }
 
-/* 该设备专属的 3D 卡片卡组视口 */
+/* 3D 卡片卡组视口：绝对居中锚点 */
 .deck {
   position: relative;
-  width: 100%;
-  height: 100%;
+  width: var(--cw-deck, 440px);
+  height: min(60vh, 560px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -187,11 +186,13 @@ body {
 /* 监视卡片：WA 风格磨砂水玻质感 */
 .card, .ghost {
   position: absolute;
+  left: 50%;
+  top: 50%;
   display: flex;
   flex-direction: row;
   background: var(--panel);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   border: 1px solid var(--panel-border);
   border-radius: 10px;
   overflow: hidden;
@@ -208,18 +209,18 @@ body {
 
 /* 竖屏 9:16 自适应尺寸 */
 .card.is-portrait, .ghost.is-portrait {
-  --video-h: min(62vh, 580px);
+  --video-h: min(60vh, 560px);
   --video-w: calc(var(--video-h) * 9 / 16);
-  --meta-w: 120px;
+  --meta-w: 125px;
   width: calc(var(--video-w) + var(--meta-w));
   height: var(--video-h);
 }
 
 /* 横屏 16:9 自适应尺寸 */
 .card.is-landscape, .ghost.is-landscape {
-  --video-w: min(44vw, 460px);
+  --video-w: min(38vw, 480px);
   --video-h: calc(var(--video-w) * 9 / 16);
-  --meta-w: 120px;
+  --meta-w: 125px;
   width: calc(var(--video-w) + var(--meta-w));
   height: var(--video-h);
 }
@@ -289,7 +290,7 @@ body {
 }
 @keyframes rec { 50% { opacity: 0.3; } }
 
-/* 右侧元数据栏：融合水墨淡雅与科技排版 */
+/* 右侧元数据栏 */
 .card .tag {
   flex: 1 1 auto;
   min-width: 0;
@@ -373,7 +374,7 @@ body {
   text-align: center;
   padding: 0 16px;
 }
-@keyframes breathe { 50% { opacity: 0.3; } }
+@keyframes breathe { 50% { opacity: 0.35; } }
 
 /* 底部操作提示 */
 .hint {
