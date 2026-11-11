@@ -205,3 +205,35 @@ body {
   height: 100%;
   background: linear-gradient(145deg, rgba(56, 189, 248, 0.04), transparent 60%);
 }
+
+/* 右下角极简低调的清除缓存按钮 */
+.btn-clear {
+  position: fixed;
+  bottom: clamp(16px, 2.5vw, 28px);
+  right: clamp(16px, 2.5vw, 28px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  font-family: var(--font);
+  font-size: 8px;
+  letter-spacing: 0.22em;
+  color: rgba(136, 169, 190, 0.45);
+  background: rgba(10, 16, 22, 0.6);
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  border-radius: 999px;
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  outline: none;
+}
+.btn-clear:hover {
+  color: #ff4848;
+  border-color: rgba(255, 72, 72, 0.35);
+  background: rgba(14, 22, 30, 0.88);
+  box-shadow: 0 0 16px rgba(255, 72, 72, 0.18);
+}
+.btn-clear:active {
+  transform: scale(0.96);
+}

@@ -79,6 +79,16 @@ async function loadCachedChunks() {
   });
 }
 
+async function clearAllCachedChunks() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e.target.error);
+  });
+}
+
 /* ---------------- 设备通道 Lane 管理（支持多设备并排居中） ---------------- */
 function getOrCreateDeviceLane(deviceId = "node-default") {
   if (deviceLanes.has(deviceId)) {
@@ -354,6 +364,34 @@ async function init() {
 
   deviceLanes.forEach((l) => layoutLane(l, 0));
   connectWorkerB();
+}
+
+/* ---------------- 清空所有缓存逻辑 ---------------- */
+const clearBtn = document.getElementById("btn-clear");
+if (clearBtn) {
+  clearBtn.addEventListener("click", async () => {
+    if (!confirm("Clear all cached surveillance clips from this browser?")) return;
+
+    try {
+      await clearAllCachedChunks();
+    } catch (_) {}
+
+    // 清空内存 DOM 与 Blob URL
+    deviceLanes.forEach((laneData) => {
+      laneData.clips.forEach((c) => {
+        if (c.url) URL.revokeObjectURL(c.url);
+        if (c.el) c.el.remove();
+      });
+      laneData.clips = [];
+      laneData.pos = 0;
+      layoutLane(laneData, 0);
+    });
+
+    deviceLanes.clear();
+    lanesContainer.innerHTML = "";
+    getOrCreateDeviceLane("node-01");
+    deviceLanes.forEach((l) => layoutLane(l, 0));
+  });
 }
 
 init();
